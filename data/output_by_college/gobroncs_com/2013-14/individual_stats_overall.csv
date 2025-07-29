@@ -1,0 +1,14 @@
+#,Player,GP,GS,Minutes,Minutes,FG,FG,FG,3PT,3PT,3PT,FT,FT,FT,Scoring,Scoring,Rebounds,Rebounds,Rebounds,Rebounds,PF,AST,TO,STL,BLK,Bio Link
+#,Player,GP,GS,TOT,AVG,FGM,FGA,FG%,3PT,3PTA,3PT%,FTM,FTA,FT%,PTS,AVG,OFF,DEF,TOT,AVG,PF,AST,TO,STL,BLK,Bio Link
+24,"McKenzie, MyNeshia  24 McKenzie, MyNeshia",1,1.0,37,37.0,9,16,0.563,0,1,0.0,6,12,0.5,24,24.0,3,9,12,12.0,0,1,1,0,2,View Bio
+22,"Fazzini, Emily  22 Fazzini, Emily",1,1.0,23,23.0,6,12,0.5,1,3,0.333,0,0,0.0,13,13.0,1,5,6,6.0,4,1,1,1,1,View Bio
+21,"Johnson, Mikal  21 Johnson, Mikal",1,0.0,31,31.0,3,17,0.176,2,8,0.25,2,2,1.0,10,10.0,2,2,4,4.0,2,1,2,1,0,View Bio
+35,"Gillcrease, Marritta  35 Gillcrease, Marritta",1,1.0,26,26.0,2,3,0.667,0,0,0.0,1,2,0.5,5,5.0,6,2,8,8.0,2,0,1,2,3,View Bio
+45,"Duggan, Julia  45 Duggan, Julia",1,0.0,12,12.0,1,2,0.5,0,0,0.0,2,4,0.5,4,4.0,0,2,2,2.0,3,0,0,0,0,View Bio
+23,"Banks, Lashay  23 Banks, Lashay",1,1.0,28,28.0,1,9,0.111,0,2,0.0,0,0,0.0,2,2.0,0,3,3,3.0,0,0,3,0,0,View Bio
+11,"Pellet, Manon  11 Pellet, Manon",1,1.0,21,21.0,1,4,0.25,0,1,0.0,0,0,0.0,2,2.0,0,2,2,2.0,4,0,2,0,0,View Bio
+02,"Valiuskyte, Kornelija  02 Valiuskyte, Kornelija",1,0.0,18,18.0,1,3,0.333,0,2,0.0,0,0,0.0,2,2.0,0,2,2,2.0,2,0,2,2,0,View Bio
+12,"Lightbourne, Shereen  12 Lightbourne, Shereen",1,0.0,4,4.0,0,1,0.0,0,1,0.0,0,0,0.0,0,0.0,0,0,0,0.0,1,0,0,1,0,View Bio
+TM,Team  TM Team,1,0.0,0,0.0,0,0,0.0,0,0,0.0,0,0,0.0,0,0.0,2,4,6,6.0,0,0,0,0,0,
+,Total,1,,200,200.0,24,67,0.358,3,18,0.167,11,20,0.55,62,62.0,14,31,45,45.0,18,3,12,7,6,
+,Opponents,1,,200,200.0,26,69,0.377,2,13,0.154,13,18,0.722,67,67.0,16,34,50,50.0,17,12,14,5,7,
