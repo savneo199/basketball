@@ -11,9 +11,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# --------------------------
 # Config / Paths
-# --------------------------
 st.set_page_config(page_title="Coach Scouting Dashboard", layout="wide")
 
 DATA_DIR = Path("data")
@@ -24,9 +22,7 @@ CFG_PATH = PIPELINE_DIR / "config.yaml"
 # Optional API runner (Option B). If set, the app will use the API instead of subprocess.
 PIPELINE_API_URL = os.environ.get("PIPELINE_API_URL", "").strip()
 
-# --------------------------
 # Utilities & Caching
-# --------------------------
 def hash_data_folder() -> str:
     h = hashlib.sha256()
     for p in sorted(DATA_DIR.rglob("*.csv")):
@@ -65,7 +61,7 @@ def latest_artifacts():
         "elbow": latest / "elbow_plot.png",
         "silhouette": latest / "silhouette_plot.png",
         "db_plot": latest / "db_plot.png",
-        "ch_plot": latest / "ch_plot.png",
+        # "ch_plot": latest / "ch_plot.png",
     }
 
 # Pretty column name utilities
@@ -152,6 +148,9 @@ BASE_MAP = {
     "game_score_per40": "Game Score per 40",
     "min_share": "Minute Share",
     "Archetype": "Player Archetype",
+}
+
+COLLEGE_MAP = {
     "manhattan":       "Manhattan Jaspers",
     "mount st marys":  "Mount St. Mary’s Mountaineers",
     "niagara":         "Niagara Purple Eagles",
@@ -164,9 +163,10 @@ BASE_MAP = {
     "siena":           "Siena Saints",
     "canisius":        "Canisius Golden Griffins",
     "saint peters":    "Saint Peter’s Peacocks",
-    "rider":           "Rider Broncs"
- 
+    "rider":           "Rider Broncs",
 }
+COLLEGE_MAP_INV = {v: k for k, v in COLLEGE_MAP.items()} 
+
 
 def make_unique_cols(names):
     seen = {}
@@ -193,9 +193,7 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-# --------------------------
 # Pipeline runners
-# --------------------------
 def run_pipeline_local():
     """Run orchestrate.py locally (Option A)."""
     run_id = datetime.now().strftime("run_%Y%m%d_%H%M%S")
@@ -286,9 +284,7 @@ def run_pipeline():
         return run_pipeline_api()
     return run_pipeline_local()
 
-# --------------------------
 # Sidebar: Data Manager
-# --------------------------
 st.sidebar.header("Data Manager")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 uploads = st.sidebar.file_uploader(
@@ -307,14 +303,12 @@ if uploads:
 st.sidebar.caption("Data snapshot hash")
 st.sidebar.code(hash_data_folder())
 
-# --------------------------
 # Tabs
-# --------------------------
 tab_train, tab_roster, tab_matchups = st.tabs(
     ["Train & Explore", "Roster (Team & Season)", "Match-ups"]
 )
 
-# ======== Train & Explore ========
+# Train & Explore
 with tab_train:
     colA, colB = st.columns([1, 1])
     with colA:
@@ -360,13 +354,13 @@ with tab_train:
         pcols2 = st.columns(2)
         if paths["ch_plot"].exists():
             pcols2[0].image(str(paths["ch_plot"]), caption="CH Plot", use_container_width=True)
-        if paths["db_plot"].exists():
-            pcols2[1].image(str(paths["db_plot"]), caption="DB Plot", use_container_width=True)
+        # if paths["db_plot"].exists():
+        #     pcols2[1].image(str(paths["db_plot"]), caption="DB Plot", use_container_width=True)
 
         with st.expander("cluster_summary.json"):
             st.json(summary if summary else {"info": "No summary yet"})
 
-# ======== Roster (Team & Season) ========
+# Roster (Team & Season)
 with tab_roster:
     st.subheader("Roster & Metrics")
     paths = latest_artifacts()
@@ -375,76 +369,158 @@ with tab_roster:
     else:
         df = load_parquet(paths["processed"]).copy()
 
-        # --- Team & Season dropdowns (accept 'team' or 'college') ---
-        TEAM_COL = "team" if "team" in df.columns else ("college" if "college" in df.columns else None)
-        if TEAM_COL is None:
-            st.warning("Neither 'team' nor 'college' found in processed data.")
-        elif "season" not in df.columns:
-            st.warning("Expected column 'season' not found in processed data.")
+        # Normalize & map college names for display
+        if "college" in df.columns:
+            df["_college_norm"] = (
+                df["college"].astype(str).str.strip().str.lower()
+            )
+            # Show full names if we have them; otherwise fall back to original
+            df["college_display"] = df["_college_norm"].map(COLLEGE_MAP).fillna(df["college"])
+
+        # # Team & Season dropdowns
+        # TEAM_COL = "college" if "college" in df.columns else None
+        # if TEAM_COL is None:
+        #     st.warning("'college' not found in processed data.")
+        # elif "season" not in df.columns:
+        #     st.warning("Expected column 'season' not found in processed data.")
+        # else:
+        #     teams = sorted(df[TEAM_COL].dropna().unique().tolist())
+        #     team = st.selectbox("Team", teams, index=0 if teams else None)
+
+        #     seasons_for_team = sorted(
+        #         df.loc[df[TEAM_COL] == team, "season"].dropna().unique().tolist()
+        #     ) if team else []
+        #     if not seasons_for_team:
+        #         st.info("No seasons found for the selected team.")
+        #     season = st.selectbox("Season", seasons_for_team, index=0 if seasons_for_team else None)
+
+        #     show_adv = st.checkbox("Show advanced metrics", value=False)
+
+        #     # Only proceed when both selections exist
+        #     if team and season:
+        #         # Filter to selection
+        #         filt = df[(df[TEAM_COL] == team) & (df["season"] == season)].copy()
+
+        #         if show_adv:
+        #             # Show everything for the selected team-season
+        #             view = filt.copy()
+        #         else:
+        #             # Exact minimal set & order:
+        #             # Player Name, Player #, Points, Assists, Rebounds, Steals, GP, Archetype
+        #             minimal_cols = [
+        #                 "player_ind", "player_number_ind", "scoring_pts_ind", "ast_ind", "rebounds_tot_ind", "blk_ind", "stl_ind", "gp_ind", "to_ind", "Archetype"
+        #             ]
+        #             cols = [c for c in minimal_cols if c in filt.columns]
+        #             view = filt[cols].copy()
+
+        #         # Rename columns nicely
+        #         view = rename_columns(view)
+
+        #         st.dataframe(view, use_container_width=True)
+
+        #         # Export exactly what is shown
+        #         st.download_button(
+        #             "Download CSV (current selection)",
+        #             data=view.to_csv(index=False).encode(),
+        #             file_name=f"{team}_{season}_players.csv",
+        #             mime="text/csv",
+        #         )
+
+        #         # Notes & comments for this team/season
+        #         st.markdown("---")
+        #         st.subheader("Notes & Comments")
+        #         notes_file = Path("app_notes.json")
+        #         notes = load_json_file(notes_file) if notes_file.exists() else {}
+        #         key = f"{team}__{season}"
+        #         existing_text = notes.get(key, "")
+        #         txt = st.text_area(
+        #             "Write notes for this team/season",
+        #             value=existing_text,
+        #             height=160,
+        #             key="notes_roster",
+        #         )
+        #         if st.button("Save notes", key="save_notes_roster"):
+        #             notes[key] = txt
+        #             notes_file.write_text(json.dumps(notes, indent=2))
+        #             st.success("Notes saved")
+        #     else:
+        #         st.info("Select both Team and Season to view the roster.")
+        # Team & Season dropdowns
+TEAM_COL = "college" if "college" in df.columns else None
+if TEAM_COL is None:
+    st.warning("'college' not found in processed data.")
+elif "season" not in df.columns:
+    st.warning("Expected column 'season' not found in processed data.")
+else:
+    # Use display names in the dropdown
+    TEAM_COL_DISPLAY = "college_display"
+    teams = sorted(df[TEAM_COL_DISPLAY].dropna().unique().tolist())
+    team_display = st.selectbox("Team", teams, index=0 if teams else None)
+
+    # Convert selected display back to normalized key for filtering
+    selected_norm = COLLEGE_MAP_INV.get(
+        team_display, str(team_display).strip().lower()
+    )
+
+    seasons_for_team = sorted(
+        df.loc[df["_college_norm"] == selected_norm, "season"].dropna().unique().tolist()
+    ) if team_display else []
+
+    if not seasons_for_team:
+        st.info("No seasons found for the selected team.")
+    season = st.selectbox("Season", seasons_for_team, index=0 if seasons_for_team else None)
+
+    show_adv = st.checkbox("Show advanced metrics", value=False)
+
+    # Only proceed when both selections exist
+    if team_display and season:
+        # Filter to selection using normalized value
+        filt = df[(df["_college_norm"] == selected_norm) & (df["season"] == season)].copy()
+
+        if show_adv:
+            view = filt.copy()
         else:
-            teams = sorted(df[TEAM_COL].dropna().unique().tolist())
-            team = st.selectbox("Team", teams, index=0 if teams else None)
+            minimal_cols = [
+                "player_ind", "player_number_ind", "scoring_pts_ind",
+                "ast_ind", "rebounds_tot_ind", "blk_ind", "stl_ind",
+                "gp_ind", "to_ind", "Archetype"
+            ]
+            cols = [c for c in minimal_cols if c in filt.columns]
+            view = filt[cols].copy()
 
-            seasons_for_team = sorted(
-                df.loc[df[TEAM_COL] == team, "season"].dropna().unique().tolist()
-            ) if team else []
-            if not seasons_for_team:
-                st.info("No seasons found for the selected team.")
-            season = st.selectbox("Season", seasons_for_team, index=0 if seasons_for_team else None)
+        # Rename columns nicely
+        view = rename_columns(view)
 
-            show_adv = st.checkbox("Show advanced metrics", value=False)
+        st.dataframe(view, use_container_width=True)
 
-            # Only proceed when both selections exist
-            if team and season:
-                # Filter to selection
-                filt = df[(df[TEAM_COL] == team) & (df["season"] == season)].copy()
+        # Use the pretty display name in the export filename and notes key
+        st.download_button(
+            "Download CSV (current selection)",
+            data=view.to_csv(index=False).encode(),
+            file_name=f"{team_display}_{season}_players.csv",
+            mime="text/csv",
+        )
 
-                if show_adv:
-                    # Show everything for the selected team-season
-                    view = filt.copy()
-                else:
-                    # Exact minimal set & order:
-                    # Player Name, Player #, Points, Assists, Rebounds, Steals, GP, Archetype
-                    minimal_cols = [
-                        "player_ind", "player_number_ind", "scoring_pts_ind", "ast_ind", "rebounds_tot_ind", "blk_ind", "stl_ind", "gp_ind", "to_ind", "Archetype"
-                    ]
-                    cols = [c for c in minimal_cols if c in filt.columns]
-                    view = filt[cols].copy()
+        st.markdown("---")
+        st.subheader("Notes & Comments")
+        notes_file = Path("app_notes.json")
+        notes = load_json_file(notes_file) if notes_file.exists() else {}
+        key = f"{team_display}__{season}"
+        existing_text = notes.get(key, "")
+        txt = st.text_area(
+            "Write notes for this team/season",
+            value=existing_text,
+            height=160,
+            key="notes_roster",
+        )
+        if st.button("Save notes", key="save_notes_roster"):
+            notes[key] = txt
+            notes_file.write_text(json.dumps(notes, indent=2))
+            st.success("Notes saved")
+    else:
+        st.info("Select both Team and Season to view the roster.")
 
-                # Rename columns nicely
-                view = rename_columns(view)
-
-                st.dataframe(view, use_container_width=True)
-
-                # Export exactly what is shown
-                st.download_button(
-                    "Download CSV (current selection)",
-                    data=view.to_csv(index=False).encode(),
-                    file_name=f"{team}_{season}_players.csv",
-                    mime="text/csv",
-                )
-
-                # Notes & comments for this team/season
-                st.markdown("---")
-                st.subheader("Notes & Comments")
-                notes_file = Path("app_notes.json")
-                notes = load_json_file(notes_file) if notes_file.exists() else {}
-                key = f"{team}__{season}"
-                existing_text = notes.get(key, "")
-                txt = st.text_area(
-                    "Write notes for this team/season",
-                    value=existing_text,
-                    height=160,
-                    key="notes_roster",
-                )
-                if st.button("Save notes", key="save_notes_roster"):
-                    notes[key] = txt
-                    notes_file.write_text(json.dumps(notes, indent=2))
-                    st.success("Notes saved")
-            else:
-                st.info("Select both Team and Season to view the roster.")
-
-# ======== Match-ups ========
+# Match-ups
 with tab_matchups:
     st.subheader("Match-up Planner")
     paths = latest_artifacts()
