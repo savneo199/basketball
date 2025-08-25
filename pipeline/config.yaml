@@ -1,0 +1,42 @@
+
+# Pipeline configuration
+notebooks:
+  preprocess: "notebooks/preprocess.ipynb"
+  explore: "notebooks/explore.ipynb"
+  train: "notebooks/k_means_final.ipynb"
+
+data_dir: "data/output_by_college_clean"
+
+
+artifacts:
+  dir: "artifacts"
+  processed_data: "processed.parquet"
+  model_file: "kmeans_model.joblib"
+  scaler_file: "scaler.joblib"
+  pca_file: "pca.joblib"
+  cluster_summary: "cluster_summary.json"
+  elbow_plot: "elbow_plot.png"
+  silhouette_plot: "silhouette_plot.png"
+  db_plot: "db_plot.png"
+  ch_plot: "ch_plot.png"
+  selection: "selection.json"
+params:
+  # set to an int to force; set to "auto" to let notebooks choose
+  n_clusters: "auto"
+  n_clusters_min: 6
+  n_clusters_max: 50
+  n_clusters_criterion: "silhouette"   # or "elbow_knee" (you already sweep)
+
+  pca_components: "auto"
+  pca_variance: 0.90
+  pca_max_components: 50
+
+  random_state: 42
+
+# Optional: a key under which notebooks can read/write params/artifacts.
+# This object is injected into the notebook namespace as PIPELINE_CONTEXT.
+runtime_context_name: "PIPELINE_CONTEXT"
+
+
+
+
