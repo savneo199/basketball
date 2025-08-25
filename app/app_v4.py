@@ -151,7 +151,20 @@ BASE_MAP = {
     "game_score": "Game Score",
     "game_score_per40": "Game Score per 40",
     "min_share": "Minute Share",
-    "Archetype": "Player Archetype"
+    "Archetype": "Player Archetype",
+    "manhattan":       "Manhattan Jaspers",
+    "mount st marys":  "Mount St. Mary’s Mountaineers",
+    "niagara":         "Niagara Purple Eagles",
+    "sacred heart":    "Sacred Heart Pioneers",
+    "quinnipiac":      "Quinnipiac Bobcats",
+    "merrimack":       "Merrimack Warriors",
+    "marist":          "Marist Red Foxes",
+    "fairfield":       "Fairfield Stags",
+    "iona":            "Iona Gaels",
+    "siena":           "Siena Saints",
+    "canisius":        "Canisius Golden Griffins",
+    "saint peters":    "Saint Peter’s Peacocks",
+    "rider":           "Rider Broncs"
  
 }
 
