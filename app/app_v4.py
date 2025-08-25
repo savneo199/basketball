@@ -61,7 +61,7 @@ def latest_artifacts():
         "elbow": latest / "elbow_plot.png",
         "silhouette": latest / "silhouette_plot.png",
         "db_plot": latest / "db_plot.png",
-        # "ch_plot": latest / "ch_plot.png",
+        "ch_plot": latest / "ch_plot.png",
     }
 
 # Pretty column name utilities
@@ -354,8 +354,8 @@ with tab_train:
         pcols2 = st.columns(2)
         if paths["ch_plot"].exists():
             pcols2[0].image(str(paths["ch_plot"]), caption="CH Plot", use_container_width=True)
-        # if paths["db_plot"].exists():
-        #     pcols2[1].image(str(paths["db_plot"]), caption="DB Plot", use_container_width=True)
+        if paths["db_plot"].exists():
+            pcols2[1].image(str(paths["db_plot"]), caption="DB Plot", use_container_width=True)
 
         with st.expander("cluster_summary.json"):
             st.json(summary if summary else {"info": "No summary yet"})
