@@ -361,75 +361,75 @@ with tab_train:
             st.json(summary if summary else {"info": "No summary yet"})
 
         # --- Interactive pie chart of cluster composition ---
-with st.expander("Cluster composition (interactive)"):
-    cluster_sizes = (summary.get("cluster_sizes") or {})
-    if not cluster_sizes:
-        st.info("No 'cluster_sizes' found in cluster_summary.json.")
-    else:
-        # Optional mapping from cluster id -> archetype name if present in JSON
-        # Expecting something like: {"0": "Sharpshooter", "1": "Slasher", ...}
-        arch_map = (summary.get("archetype_names") or
-                    summary.get("cluster_archetypes") or
-                    summary.get("cluster_to_archetype") or
-                    {})
+        with st.expander("Cluster composition (interactive)"):
+            cluster_sizes = (summary.get("cluster_sizes") or {})
+            if not cluster_sizes:
+                st.info("No 'cluster_sizes' found in cluster_summary.json.")
+            else:
+                # Optional mapping from cluster id -> archetype name if present in JSON
+                # Expecting something like: {"0": "Sharpshooter", "1": "Slasher", ...}
+                arch_map = (summary.get("archetype_names") or
+                            summary.get("cluster_archetypes") or
+                            summary.get("cluster_to_archetype") or
+                            {})
 
-        # Build dataframe for plotting
-        cs_items = sorted(((int(k), int(v)) for k, v in cluster_sizes.items()), key=lambda x: x[0])
-        cluster_ids = [cid for cid, _ in cs_items]
-        counts = [cnt for _, cnt in cs_items]
-        total = sum(counts) if counts else 1
+                # Build dataframe for plotting
+                cs_items = sorted(((int(k), int(v)) for k, v in cluster_sizes.items()), key=lambda x: x[0])
+                cluster_ids = [cid for cid, _ in cs_items]
+                counts = [cnt for _, cnt in cs_items]
+                total = sum(counts) if counts else 1
 
-        # Prefer archetype names; fallback to "Cluster {id}"
-        labels = [arch_map.get(str(cid), f"Cluster {cid}") for cid in cluster_ids]
+                # Prefer archetype names; fallback to "Cluster {id}"
+                labels = [arch_map.get(str(cid), f"Cluster {cid}") for cid in cluster_ids]
 
-        df_pie = pd.DataFrame({
-            "Cluster ID": cluster_ids,
-            "Archetype": labels,
-            "Count": counts,
-            "Percent": [c * 100.0 / total for c in counts],
-        })
+                df_pie = pd.DataFrame({
+                    "Cluster ID": cluster_ids,
+                    "Archetype": labels,
+                    "Count": counts,
+                    "Percent": [c * 100.0 / total for c in counts],
+                })
 
-        # Try Plotly first for richer interactivity
-        try:
-            import plotly.express as px
-            fig = px.pie(
-                df_pie,
-                names="Archetype",
-                values="Count",
-                hole=0.35,  # donut style; set to 0 for full pie
-            )
-            fig.update_traces(
-                textinfo="percent",
-                hovertemplate="<b>%{label}</b><br>Count: %{value}<br>% of total: %{percent}<extra></extra>"
-            )
-            fig.update_layout(
-                legend_title_text="Archetypes",
-                margin=dict(l=10, r=10, t=30, b=10),
-                title_text="Cluster Composition by Archetype"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception:
-            # Fallback to Altair (built-in with Streamlit) if Plotly isn't available
-            import altair as alt
-            # Altair pie via arc marks
-            pie = alt.Chart(df_pie).mark_arc(innerRadius=80).encode(
-                theta=alt.Theta("Count:Q"),
-                color=alt.Color("Archetype:N", legend=alt.Legend(title="Archetypes")),
-                tooltip=[
-                    alt.Tooltip("Archetype:N"),
-                    alt.Tooltip("Count:Q"),
-                    alt.Tooltip("Percent:Q", format=".1f")
-                ]
-            ).properties(
-                width="container",
-                height=360,
-                title="Cluster Composition by Archetype"
-            )
-            st.altair_chart(pie, use_container_width=True)
+                # Try Plotly first for richer interactivity
+                try:
+                    import plotly.express as px
+                    fig = px.pie(
+                        df_pie,
+                        names="Archetype",
+                        values="Count",
+                        hole=0.35,  # donut style; set to 0 for full pie
+                    )
+                    fig.update_traces(
+                        textinfo="percent",
+                        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>% of total: %{percent}<extra></extra>"
+                    )
+                    fig.update_layout(
+                        legend_title_text="Archetypes",
+                        margin=dict(l=10, r=10, t=30, b=10),
+                        title_text="Cluster Composition by Archetype - plotly"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception:
+                    # Fallback to Altair (built-in with Streamlit) if Plotly isn't available
+                    import altair as alt
+                    # Altair pie via arc marks
+                    pie = alt.Chart(df_pie).mark_arc(innerRadius=80).encode(
+                        theta=alt.Theta("Count:Q"),
+                        color=alt.Color("Archetype:N", legend=alt.Legend(title="Archetypes")),
+                        tooltip=[
+                            alt.Tooltip("Archetype:N"),
+                            alt.Tooltip("Count:Q"),
+                            alt.Tooltip("Percent:Q", format=".1f")
+                        ]
+                    ).properties(
+                        width="container",
+                        height=360,
+                        title="Cluster Composition by Archetype - altair"
+                    )
+                    st.altair_chart(pie, use_container_width=True)
 
-        # Also show the underlying table for clarity
-        st.caption("Counts by archetype")
-        st.dataframe(df_pie[["Archetype", "Count", "Percent"]].sort_values("Count", ascending=False), use_container_width=True)
+                # Also show the underlying table for clarity
+                st.caption("Counts by archetype")
+                st.dataframe(df_pie[["Archetype", "Count", "Percent"]].sort_values("Count", ascending=False), use_container_width=True)
 
 
 # Roster (Team & Season)
@@ -449,75 +449,7 @@ with tab_roster:
             # Show full names if we have them; otherwise fall back to original
             df["college_display"] = df["_college_norm"].map(COLLEGE_MAP).fillna(df["college"])
 
-        # # Team & Season dropdowns
-        # TEAM_COL = "college" if "college" in df.columns else None
-        # if TEAM_COL is None:
-        #     st.warning("'college' not found in processed data.")
-        # elif "season" not in df.columns:
-        #     st.warning("Expected column 'season' not found in processed data.")
-        # else:
-        #     teams = sorted(df[TEAM_COL].dropna().unique().tolist())
-        #     team = st.selectbox("Team", teams, index=0 if teams else None)
-
-        #     seasons_for_team = sorted(
-        #         df.loc[df[TEAM_COL] == team, "season"].dropna().unique().tolist()
-        #     ) if team else []
-        #     if not seasons_for_team:
-        #         st.info("No seasons found for the selected team.")
-        #     season = st.selectbox("Season", seasons_for_team, index=0 if seasons_for_team else None)
-
-        #     show_adv = st.checkbox("Show advanced metrics", value=False)
-
-        #     # Only proceed when both selections exist
-        #     if team and season:
-        #         # Filter to selection
-        #         filt = df[(df[TEAM_COL] == team) & (df["season"] == season)].copy()
-
-        #         if show_adv:
-        #             # Show everything for the selected team-season
-        #             view = filt.copy()
-        #         else:
-        #             # Exact minimal set & order:
-        #             # Player Name, Player #, Points, Assists, Rebounds, Steals, GP, Archetype
-        #             minimal_cols = [
-        #                 "player_ind", "player_number_ind", "scoring_pts_ind", "ast_ind", "rebounds_tot_ind", "blk_ind", "stl_ind", "gp_ind", "to_ind", "Archetype"
-        #             ]
-        #             cols = [c for c in minimal_cols if c in filt.columns]
-        #             view = filt[cols].copy()
-
-        #         # Rename columns nicely
-        #         view = rename_columns(view)
-
-        #         st.dataframe(view, use_container_width=True)
-
-        #         # Export exactly what is shown
-        #         st.download_button(
-        #             "Download CSV (current selection)",
-        #             data=view.to_csv(index=False).encode(),
-        #             file_name=f"{team}_{season}_players.csv",
-        #             mime="text/csv",
-        #         )
-
-        #         # Notes & comments for this team/season
-        #         st.markdown("---")
-        #         st.subheader("Notes & Comments")
-        #         notes_file = Path("app_notes.json")
-        #         notes = load_json_file(notes_file) if notes_file.exists() else {}
-        #         key = f"{team}__{season}"
-        #         existing_text = notes.get(key, "")
-        #         txt = st.text_area(
-        #             "Write notes for this team/season",
-        #             value=existing_text,
-        #             height=160,
-        #             key="notes_roster",
-        #         )
-        #         if st.button("Save notes", key="save_notes_roster"):
-        #             notes[key] = txt
-        #             notes_file.write_text(json.dumps(notes, indent=2))
-        #             st.success("Notes saved")
-        #     else:
-        #         st.info("Select both Team and Season to view the roster.")
-        # Team & Season dropdowns
+       
     TEAM_COL = "college" if "college" in df.columns else None
     if TEAM_COL is None:
         st.warning("'college' not found in processed data.")
