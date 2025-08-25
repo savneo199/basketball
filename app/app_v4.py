@@ -5,7 +5,7 @@ import hashlib
 import subprocess
 from datetime import datetime
 from pathlib import Path
-
+import plotly.express as px
 import joblib
 import numpy as np
 import pandas as pd
@@ -16,7 +16,7 @@ st.set_page_config(page_title="Coach Scouting Dashboard", layout="wide")
 
 DATA_DIR = Path("data")
 ART_DIR = Path("artifacts")
-PIPELINE_DIR = Path("pipeline")  # where orchestrate.py lives
+PIPELINE_DIR = Path("pipeline")  
 CFG_PATH = PIPELINE_DIR / "config.yaml"
 
 # Optional API runner (Option B). If set, the app will use the API instead of subprocess.
@@ -345,92 +345,67 @@ with tab_train:
         c2.metric("Clusters (k)", best_k if best_k is not None else "—")
         c3.metric("Silhouette", f"{sil:.3f}" if isinstance(sil, (int, float)) else "—")
 
-        pcols = st.columns(2)
-        if paths["elbow"].exists():
-            pcols[0].image(str(paths["elbow"]), caption="Elbow Plot", use_container_width=True)
-        if paths["silhouette"].exists():
-            pcols[1].image(str(paths["silhouette"]), caption="Silhouette vs k", use_container_width=True)
+        # pcols = st.columns(2)
+        # if paths["elbow"].exists():
+        #     pcols[0].image(str(paths["elbow"]), caption="Elbow Plot", use_container_width=True)
+        # if paths["silhouette"].exists():
+        #     pcols[1].image(str(paths["silhouette"]), caption="Silhouette vs k", use_container_width=True)
         
-        pcols2 = st.columns(2)
-        if paths["ch_plot"].exists():
-            pcols2[0].image(str(paths["ch_plot"]), caption="CH Plot", use_container_width=True)
-        if paths["db_plot"].exists():
-            pcols2[1].image(str(paths["db_plot"]), caption="DB Plot", use_container_width=True)
+        # pcols2 = st.columns(2)
+        # if paths["ch_plot"].exists():
+        #     pcols2[0].image(str(paths["ch_plot"]), caption="CH Plot", use_container_width=True)
+        # if paths["db_plot"].exists():
+        #     pcols2[1].image(str(paths["db_plot"]), caption="DB Plot", use_container_width=True)
 
-        with st.expander("cluster_summary.json"):
-            st.json(summary if summary else {"info": "No summary yet"})
+        # with st.expander("cluster_summary.json"):
+        #     st.json(summary if summary else {"info": "No summary yet"})
 
-        # --- Interactive pie chart of cluster composition ---
-        with st.expander("Cluster composition (interactive)"):
-            cluster_sizes = (summary.get("cluster_sizes") or {})
-            if not cluster_sizes:
-                st.info("No 'cluster_sizes' found in cluster_summary.json.")
-            else:
-                # Optional mapping from cluster id -> archetype name if present in JSON
-                # Expecting something like: {"0": "Sharpshooter", "1": "Slasher", ...}
-                arch_map = (summary.get("archetype_names") or
-                            summary.get("cluster_archetypes") or
-                            summary.get("cluster_to_archetype") or
-                            {})
+        # Interactive pie chart of cluster composition
+        cluster_sizes = (summary.get("cluster_sizes") or {})
+        if not cluster_sizes:
+            st.info("No 'cluster_sizes' found in cluster_summary.json.")
+        else:
+            # Optional mapping if your JSON ever stores cluster-id->name separately (backward compat)
+            arch_map = (summary.get("archetype_names")
+                        or summary.get("cluster_archetypes")
+                        or summary.get("cluster_to_archetype")
+                        
+                        or {})
+            
+            items = sorted(((str(name), int(v)) for name, v in cluster_sizes.items()),
+                        key=lambda x: (-x[1], x[0]))
+            labels = [name for name, _ in items]
+            counts = [cnt for _, cnt in items]
 
-                # Build dataframe for plotting
-                cs_items = sorted(((int(k), int(v)) for k, v in cluster_sizes.items()), key=lambda x: x[0])
-                cluster_ids = [cid for cid, _ in cs_items]
-                counts = [cnt for _, cnt in cs_items]
-                total = sum(counts) if counts else 1
+            total = max(sum(counts), 1)
+            df_pie = pd.DataFrame({
+                "Archetype": labels,
+                "Count": counts,
+                "Percent": [c * 100.0 / total for c in counts],
+            })
 
-                # Prefer archetype names; fallback to "Cluster {id}"
-                labels = [arch_map.get(str(cid), f"Cluster {cid}") for cid in cluster_ids]
+        fig = px.pie(
+            df_pie,
+            names="Archetype",
+            values="Count",
+            hole=0.35,  # donut look; set to 0 for full pie
+        )
+        fig.update_traces(
+            textinfo="percent",
+            hovertemplate="<b>%{label}</b><br>Count: %{value}<br>% of total: %{percent}<extra></extra>"
+        )
+        fig.update_layout(
+            legend_title_text="Archetypes",
+            margin=dict(l=10, r=10, t=30, b=10),
+            title_text="Cluster Composition by Archetype"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-                df_pie = pd.DataFrame({
-                    "Cluster ID": cluster_ids,
-                    "Archetype": labels,
-                    "Count": counts,
-                    "Percent": [c * 100.0 / total for c in counts],
-                })
-
-                # Try Plotly first for richer interactivity
-                try:
-                    import plotly.express as px
-                    fig = px.pie(
-                        df_pie,
-                        names="Archetype",
-                        values="Count",
-                        hole=0.35,  # donut style; set to 0 for full pie
-                    )
-                    fig.update_traces(
-                        textinfo="percent",
-                        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>% of total: %{percent}<extra></extra>"
-                    )
-                    fig.update_layout(
-                        legend_title_text="Archetypes",
-                        margin=dict(l=10, r=10, t=30, b=10),
-                        title_text="Cluster Composition by Archetype - plotly"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                except Exception:
-                    # Fallback to Altair (built-in with Streamlit) if Plotly isn't available
-                    import altair as alt
-                    # Altair pie via arc marks
-                    pie = alt.Chart(df_pie).mark_arc(innerRadius=80).encode(
-                        theta=alt.Theta("Count:Q"),
-                        color=alt.Color("Archetype:N", legend=alt.Legend(title="Archetypes")),
-                        tooltip=[
-                            alt.Tooltip("Archetype:N"),
-                            alt.Tooltip("Count:Q"),
-                            alt.Tooltip("Percent:Q", format=".1f")
-                        ]
-                    ).properties(
-                        width="container",
-                        height=360,
-                        title="Cluster Composition by Archetype - altair"
-                    )
-                    st.altair_chart(pie, use_container_width=True)
-
-                # Also show the underlying table for clarity
-                st.caption("Counts by archetype")
-                st.dataframe(df_pie[["Archetype", "Count", "Percent"]].sort_values("Count", ascending=False), use_container_width=True)
-
+        st.caption("Counts by archetype")
+        st.dataframe(
+            df_pie[["Archetype", "Count", "Percent"]].sort_values("Count", ascending=False),
+            use_container_width=True
+        )
 
 # Roster (Team & Season)
 with tab_roster:
