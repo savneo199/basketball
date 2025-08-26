@@ -1,87 +1,84 @@
+from __future__ import annotations
 
-import os
-from typing import Dict, Any, Optional
 from pathlib import Path
+from typing import Dict, Any, Optional
 
 try:
-    from nbclient import NotebookClient
     import nbformat
-except Exception as e:
-    NotebookClient = None
+    from nbclient import NotebookClient
+except Exception as _e:
     nbformat = None
+    NotebookClient = None
 
 class NotebookExecutionError(RuntimeError):
-    pass
+    """Raised when notebook execution fails."""
 
-def _detect_default_kernel() -> str:
-    # Try to detect a valid kernel name from the environment
-    try:
-        from jupyter_client.kernelspec import KernelSpecManager
-        name = KernelSpecManager().default_kernel_name
-        if isinstance(name, str) and name.strip():
-            return name
-    except Exception:
-        pass
-    # Fallbacks that usually exist
-    for candidate in ("python3", "python"):
-        try:
-            return candidate
-        except Exception:
-            continue
+def _default_kernel() -> str:
+    # Simple default; if you register custom kernels, adapt this.
     return "python3"
 
 def execute_notebook(
     notebook_path: str,
     working_dir: Optional[str] = None,
     inject_context: Optional[Dict[str, Any]] = None,
-    timeout: int = 1200,
+    timeout: int = 1800,
     kernel_name: Optional[str] = None,
-    save_output_to: Optional[str] = None
+    save_output_to: Optional[str] = None,
 ) -> None:
     """
-    Execute a Jupyter notebook in-process using nbclient.
-    - notebook_path: path to the .ipynb to execute
-    - working_dir: cwd for execution; defaults to notebook's parent
-    - inject_context: dict injected into the first cell as a Python assignment
-    - timeout: per-cell execution timeout in seconds
-    - kernel_name: kernel to use; if None, auto-detect a sensible default
-    - save_output_to: optional path to write executed notebook for provenance
+    Execute a .ipynb file in-process.
+
+    Parameters
+    ----------
+    notebook_path : str
+        Absolute or relative path to the notebook.
+    working_dir : Optional[str]
+        Directory to treat as the notebook's working directory (for relative I/O).
+        If None, uses the notebook's parent folder.
+    inject_context : Optional[Dict[str, Any]]
+        If provided, injects a first cell defining __PIPELINE_CONTEXT__ = <dict>.
+    timeout : int
+        Cell execution timeout (seconds).
+    kernel_name : Optional[str]
+        Name of the Jupyter kernel to use. Defaults to "python3".
+    save_output_to : Optional[str]
+        If provided, write executed notebook (with outputs) to this path.
     """
-    if NotebookClient is None or nbformat is None:
-        raise NotebookExecutionError(
-            "nbclient/nbformat not available. Please install with: pip install nbclient nbformat"
-        )
+    if nbformat is None or NotebookClient is None:
+        raise ImportError("nbclient and nbformat are required to execute notebooks.")
 
-    nb_path = Path(notebook_path)
+    nb_path = Path(notebook_path).resolve()
     if not nb_path.exists():
-        raise FileNotFoundError(f"Notebook not found: {notebook_path}")
+        raise FileNotFoundError(f"Notebook not found: {nb_path}")
 
+    # Load notebook
     nb = nbformat.read(nb_path, as_version=4)
 
-    # Optionally inject a cell at the top with context variables
+    # Inject lightweight context as first cell (optional)
     if inject_context:
-        from nbformat.v4.nbbase import new_code_cell
         import json
-        payload = json.dumps(inject_context)
-        runtime_name = inject_context.get("_runtime_context_name", "PIPELINE_CONTEXT")
-        code = f"{runtime_name} = {payload}"
-        nb.cells.insert(0, new_code_cell(source=code))
+        ctx_src = (
+            "# Auto-injected by orchestrator\n"
+            f"__PIPELINE_CONTEXT__ = {json.dumps(inject_context)}\n"
+        )
+        nb.cells.insert(0, nbformat.v4.new_code_cell(ctx_src))
 
-    # Resolve kernel
-    resolved_kernel = kernel_name if isinstance(kernel_name, str) and kernel_name.strip() else _detect_default_kernel()
+    # Kernel + execution cwd
+    resolved_kernel = kernel_name or _default_kernel()
+    exec_cwd = Path(working_dir).resolve() if working_dir else nb_path.parent
 
-    # Configure client (avoid passing None for kernel_name)
     client = NotebookClient(
         nb,
         timeout=timeout,
         kernel_name=resolved_kernel,
-        resources={"metadata": {"path": working_dir or str(nb_path.parent)}}
+        resources={"metadata": {"path": str(exec_cwd)}},
+        allow_errors=False,
     )
 
     try:
         client.execute()
     except Exception as e:
-        raise NotebookExecutionError(f"Execution failed for {notebook_path}: {e}") from e
+        raise NotebookExecutionError(f"Execution failed for {nb_path}: {e}") from e
 
     if save_output_to:
         out_path = Path(save_output_to)
