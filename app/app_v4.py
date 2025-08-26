@@ -66,8 +66,8 @@ def latest_artifacts():
 
 # Pretty column name utilities
 BASE_MAP = {
-    "college": "College",  
-    "season": "Season",
+    # "college": "College",  
+    # "season": "Season",
     "player_number_ind": "Player #",
     "player_ind": "Player Name",
     "gp_ind": "Games Played",

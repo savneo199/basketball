@@ -1,7 +1,7 @@
 {
   "selected": {
     "n_clusters": 6,
-    "pca_components": 0
+    "pca_components": 10
   },
   "scores": {
     "silhouette": 0.14339958592524232
