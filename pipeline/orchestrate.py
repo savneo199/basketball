@@ -143,7 +143,7 @@ def main(cfg_path: Optional[str] = None) -> str:
     # Stage: explore (optional)
     maybe_explore = NB_DIR / "explore.ipynb"
     if maybe_explore.exists():
-        print("\nRunning stage: explore (optional)")
+        print("\nRunning stage: explore")
         execute_notebook(
             notebook_path=str(maybe_explore),
             working_dir=str(REPO_ROOT),
