@@ -165,4 +165,3 @@ webencodings==0.5.1
 websocket-client==1.8.0
 wsproto==1.2.0
 yarg==0.1.9
-plotly==6.3.0
