@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import sys
 import hashlib
 import subprocess
 from datetime import datetime
@@ -251,7 +252,7 @@ def run_pipeline_local():
 
     # Use absolute path to the script; keep cwd=PIPELINE_DIR so any relative paths inside
     # orchestrate.py (like notebooks/ …) resolve correctly.
-    cmd = ["python", str(orch)]
+    cmd = [sys.executable, str(orch)]  # <-- use the same venv as the app
     proc = subprocess.Popen(
         cmd,
         cwd=str(PIPELINE_DIR),
@@ -260,7 +261,6 @@ def run_pipeline_local():
         stderr=subprocess.STDOUT,
         text=True,
     )
-
     with st.status("Running pipeline...", expanded=True) as status:
         for line in iter(proc.stdout.readline, ""):
             if not line:
