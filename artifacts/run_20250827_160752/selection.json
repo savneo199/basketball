@@ -31,19 +31,19 @@
     "inertia": [
       30018.373368290588,
       28509.043523343862,
-      27532.03932435858,
-      26627.741788985397,
+      27532.039324358575,
+      26627.741788985393,
       25770.35214043618,
-      25068.069232804337,
+      25068.069232804333,
       24524.849019251844,
       24076.09707406952,
       23452.74498262103,
       22987.274245716217,
-      22521.327882530448,
-      22167.22942953859,
-      21828.198007377498,
+      22521.32788253045,
+      22167.229429538587,
+      21828.198007377494,
       21502.369411542062,
-      21127.88149190896,
+      21127.881491908956,
       20829.796818174593,
       20623.438722285005,
       20366.360570374207,
@@ -133,10 +133,10 @@
       75.45799749505422
     ],
     "plots": {
-      "elbow": "artifacts/elbow_plot.png",
-      "silhouette": "artifacts/silhouette_plot.png",
-      "davies_bouldin": "artifacts/db_plot.png",
-      "calinski_harabasz": "artifacts/ch_plot.png"
+      "elbow": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250827_160752/elbow_plot.png",
+      "silhouette": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250827_160752/silhouette_plot.png",
+      "davies_bouldin": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250827_160752/db_plot.png",
+      "calinski_harabasz": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250827_160752/ch_plot.png"
     }
   }
 }
