@@ -1,0 +1,17 @@
+{
+  "selected": {
+    "n_clusters": 6,
+    "pca_components": 10
+  },
+  "scores": {
+    "silhouette": 0.1399260081768099
+  },
+  "cluster_sizes": {
+    "Putback Specialist": 227,
+    "Deep Range Specialist": 272,
+    "Non-Impact Role Player": 183,
+    "Two-Way Guard": 89,
+    "Rim Protector / Rebounding Big": 254,
+    "Floor General": 174
+  }
+}

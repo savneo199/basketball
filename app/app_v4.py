@@ -17,10 +17,24 @@ import streamlit as st
 # Config / Paths
 st.set_page_config(page_title="Coach Scouting Dashboard", layout="wide")
 
-DATA_DIR = Path("data")
-RAW_BASE = DATA_DIR / "output_by_college_clean"  # where team/season CSVs live
-ART_DIR = Path("artifacts")
-PIPELINE_DIR = Path("pipeline")
+APP_DIR = Path(__file__).resolve().parent
+
+def _find_project_root(start: Path) -> Path:
+    cur = start
+    for _ in range(6):  # climb up to 6 levels just in case
+        if (cur / "pipeline" / "config.yaml").exists():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return start  # fallback (shouldn't happen if your tree is standard)
+
+ROOT = _find_project_root(APP_DIR)
+
+DATA_DIR = ROOT / "data"
+RAW_BASE = DATA_DIR / "output_by_college_clean"
+ART_DIR = ROOT / "artifacts"
+PIPELINE_DIR = ROOT / "pipeline"
 CFG_PATH = PIPELINE_DIR / "config.yaml"
 
 # Optional API runner (Option B)
@@ -240,7 +254,8 @@ def validate_team_cols(cols: set) -> list:
 
 # Pipeline runners
 def run_pipeline_local():
-    """Run orchestrate.py locally (Option A)."""
+    """Run orchestrate.py locally"""
+    print("Running pipeline locally...")
     run_id = datetime.now().strftime("run_%Y%m%d_%H%M%S")
     env = os.environ.copy()
     env["RUN_ID"] = run_id
@@ -300,27 +315,28 @@ def run_pipeline_local():
     return run_id
 
 
-def run_pipeline_api():
-    import requests
-    API = PIPELINE_API_URL.rstrip("/")
-    with st.status("Requesting pipeline run via API...", expanded=True) as status:
-        r = requests.post(f"{API}/runs", json={}); r.raise_for_status()
-        run_id = r.json()["run_id"]; st.write(f"Run queued: {run_id}")
-        while True:
-            s = requests.get(f"{API}/runs/{run_id}"); s.raise_for_status()
-            state = s.json().get("state"); st.write(f"State: {state}")
-            if state in ("succeeded", "failed", "error"): break
-            time.sleep(2)
-        if state != "succeeded":
-            status.update(label="Pipeline failed", state="error")
-            st.error(f"Run {run_id} ended in state: {state}")
-            return None
-        st.cache_data.clear(); st.cache_resource.clear()
-        status.update(label=f"Finished: {run_id}", state="complete")
-        return run_id
+# def run_pipeline_api():
+#     import requests
+#     API = PIPELINE_API_URL.rstrip("/")
+#     with st.status("Requesting pipeline run via API...", expanded=True) as status:
+#         r = requests.post(f"{API}/runs", json={}); r.raise_for_status()
+#         run_id = r.json()["run_id"]; st.write(f"Run queued: {run_id}")
+#         while True:
+#             s = requests.get(f"{API}/runs/{run_id}"); s.raise_for_status()
+#             state = s.json().get("state"); st.write(f"State: {state}")
+#             if state in ("succeeded", "failed", "error"): break
+#             time.sleep(2)
+#         if state != "succeeded":
+#             status.update(label="Pipeline failed", state="error")
+#             st.error(f"Run {run_id} ended in state: {state}")
+#             return None
+#         st.cache_data.clear(); st.cache_resource.clear()
+#         status.update(label=f"Finished: {run_id}", state="complete")
+#         return run_id
 
 def run_pipeline():
-    return run_pipeline_api() if PIPELINE_API_URL else run_pipeline_local()
+    # return run_pipeline_api() if PIPELINE_API_URL else run_pipeline_local()
+    return run_pipeline_local()
 
 # Sidebar: Data Manager
 st.sidebar.header("Data Manager")
@@ -350,6 +366,7 @@ tab_train, tab_roster, tab_matchups, tab_upload = st.tabs(
 with tab_train:
     colA, colB = st.columns([1, 1])
     with colA:
+        st.subheader("Run pipeline on current data - GitHub")
         st.subheader("Run pipeline on current data")
         if st.button("Run pipeline now"):
             rid = run_pipeline()
@@ -427,6 +444,10 @@ with tab_roster:
         if "college" in df.columns:
             df["_college_norm"] = df["college"].astype(str).str.strip().str.lower()
             df["college_display"] = df["_college_norm"].map(COLLEGE_MAP).fillna(df["college"])
+        elif "college" not in df.columns:
+            st.info("College names not found.")
+        elif not df:
+            st.info("No data available.")
 
     TEAM_COL = "college" if "college" in df.columns else None
     if TEAM_COL is None:
