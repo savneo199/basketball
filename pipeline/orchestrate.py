@@ -77,6 +77,17 @@ def main(config_path: str = None):
     cfg_path = Path(config_path) if config_path else HERE / "config.yaml"
     cfg = load_config(cfg_path)
 
+    # Normalize artifacts dir to an absolute path rooted at the repo root (parent of pipeline/)
+    art_dir_cfg = Path(cfg["artifacts"]["dir"])
+    if not art_dir_cfg.is_absolute():
+        repo_root = cfg_path.parent.parent          # .../  (one level above pipeline/)
+        art_dir_abs = (repo_root / art_dir_cfg).resolve()
+        art_dir_abs.mkdir(parents=True, exist_ok=True)
+        cfg["artifacts"]["dir"] = str(art_dir_abs)
+
+    print(f"[resolve] artifacts.dir -> {cfg['artifacts']['dir']}")
+
+
     # Compute per-run artifact paths
     fq_artifacts = _make_run_artifacts(cfg)
 
