@@ -1,9 +1,9 @@
 
 # Pipeline configuration
 notebooks:
-  preprocess: "notebooks/preprocess.ipynb"
-  explore: "notebooks/explore.ipynb"
-  train: "notebooks/k_means_final.ipynb"
+  preprocess: "../notebooks/preprocess.ipynb"
+  explore: "../notebooks/explore.ipynb"
+  train: "../notebooks/k_means_final.ipynb"
 
 data_dir: "data/output_by_college_clean"
 
