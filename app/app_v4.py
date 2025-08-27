@@ -252,8 +252,8 @@ def validate_team_cols(cols: set) -> list:
             missing.append(f"- {label} (one of: {', '.join(sorted(alts))})")
     return missing
 
-# Pipeline runners
-def run_pipeline_local():
+# Pipeline runner
+def run_pipeline():
     """Run orchestrate.py locally"""
     print("Running pipeline locally...")
     run_id = datetime.now().strftime("run_%Y%m%d_%H%M%S")
@@ -314,52 +314,9 @@ def run_pipeline_local():
 
     return run_id
 
-
-# def run_pipeline_api():
-#     import requests
-#     API = PIPELINE_API_URL.rstrip("/")
-#     with st.status("Requesting pipeline run via API...", expanded=True) as status:
-#         r = requests.post(f"{API}/runs", json={}); r.raise_for_status()
-#         run_id = r.json()["run_id"]; st.write(f"Run queued: {run_id}")
-#         while True:
-#             s = requests.get(f"{API}/runs/{run_id}"); s.raise_for_status()
-#             state = s.json().get("state"); st.write(f"State: {state}")
-#             if state in ("succeeded", "failed", "error"): break
-#             time.sleep(2)
-#         if state != "succeeded":
-#             status.update(label="Pipeline failed", state="error")
-#             st.error(f"Run {run_id} ended in state: {state}")
-#             return None
-#         st.cache_data.clear(); st.cache_resource.clear()
-#         status.update(label=f"Finished: {run_id}", state="complete")
-#         return run_id
-
-def run_pipeline():
-    # return run_pipeline_api() if PIPELINE_API_URL else run_pipeline_local()
-    return run_pipeline_local()
-
-# Sidebar: Data Manager
-st.sidebar.header("Data Manager")
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-uploads = st.sidebar.file_uploader(
-    "Upload CSVs (manual placement currently)",
-    accept_multiple_files=True,
-    type=["csv"],
-)
-if uploads:
-    for f in uploads:
-        out = DATA_DIR / f.name
-        out.write_bytes(f.getvalue())
-    st.sidebar.success(
-        "Uploaded to data/. Please place/rename into output_by_college_clean/<team>/<season>/ and run the pipeline."
-    )
-
-st.sidebar.caption("Data snapshot hash")
-st.sidebar.code(hash_data_folder())
-
 # Tabs
-tab_train, tab_roster, tab_matchups, tab_upload = st.tabs(
-    ["Train & Explore", "Roster (Team & Season)", "Match-ups", "Upload & Classify"]
+tab_train, tab_hist, tab_matchups, tab_upload = st.tabs(
+    ["Train & Explore", "Historical Data", "Match-ups", "Upload & Classify"]
 )
 
 # Train & Explore
@@ -432,8 +389,8 @@ with tab_train:
                 use_container_width=True
             )
 
-# Roster (Team & Season)
-with tab_roster:
+# Historical datat
+with tab_hist:
     st.subheader("Roster & Metrics")
     paths = latest_artifacts()
     if not paths or not paths["processed"].exists():
@@ -442,8 +399,8 @@ with tab_roster:
         df = load_parquet(paths["processed"]).copy()
         # Normalize & map college names for display
         if "college" in df.columns:
-            df["_college_norm"] = df["college"].astype(str).str.strip().str.lower()
-            df["college_display"] = df["_college_norm"].map(COLLEGE_MAP).fillna(df["college"])
+            df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
+            df["college_display"] = df[" college_norm"].map(COLLEGE_MAP).fillna(df["college"])
         elif "college" not in df.columns:
             st.info("College names not found.")
         elif not df:
@@ -460,7 +417,7 @@ with tab_roster:
         team_display = st.selectbox("Team", teams, index=0 if teams else None)
         selected_norm = COLLEGE_MAP_INV.get(team_display, str(team_display).strip().lower())
         seasons_for_team = sorted(
-            df.loc[df["_college_norm"] == selected_norm, "season"].dropna().unique().tolist()
+            df.loc[df[" college_norm"] == selected_norm, "season"].dropna().unique().tolist()
         ) if team_display else []
         if not seasons_for_team:
             st.info("No seasons found for the selected team.")
@@ -468,9 +425,11 @@ with tab_roster:
         show_adv = st.checkbox("Show advanced metrics", value=False)
 
         if team_display and season:
-            filt = df[(df["_college_norm"] == selected_norm) & (df["season"] == season)].copy()
+            filt = df[(df[" college_norm"] == selected_norm) & (df["season"] == season)].copy()
+            
             if show_adv:
-                view = filt.copy()
+                drop_cols = [c for c in [" college_norm", "college_display"] if c in filt.columns]
+                view = filt.drop(columns=drop_cols).copy()
             else:
                 minimal_cols = [
                     "player_ind", "player_number_ind", "scoring_pts_ind",
@@ -615,4 +574,11 @@ with tab_upload:
         rid = run_pipeline()
         if rid:
             st.success(f"Pipeline completed: {rid}")
-            st.info("Go to the 'Roster' tab to view the new team-season, select it, and see archetypes.")
+            st.info("Click Finish button to update results.")
+            
+
+    if st.button("Finish"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("Refreshed. Go to the 'Roster' tab to view the new team-season, select it, and see archetypes.")
+
