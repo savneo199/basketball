@@ -20,6 +20,7 @@ artifacts:
   db_plot: "db_plot.png"
   ch_plot: "ch_plot.png"
   selection: "selection.json"
+
 params:
   # set to an int to force; set to "auto" to let notebooks choose
   n_clusters: "auto"

@@ -1,0 +1,40 @@
+{
+  "selected": {
+    "n_clusters": 29,
+    "pca_components": 10
+  },
+  "scores": {
+    "silhouette": 0.1899989036912799
+  },
+  "cluster_sizes": {
+    "Slasher / Cutter": 56,
+    "Pass-First Point Guard / Floor General": 45,
+    "Low-Turnover Connector": 64,
+    "Rim Protector / Rebounding Big": 34,
+    "High-Usage Volume Big / Post Scorer": 89,
+    "Efficient Finisher / Low-Usage Big": 31,
+    "Transition Creator": 60,
+    "Drive-and-Kick Playmaker": 67,
+    "Screen Setter / Roll-Pop Facilitator": 55,
+    "Microwave Bench Scorer": 35,
+    "Corner Specialist": 31,
+    "Transition Finisher": 49,
+    "Midrange Maestro": 67,
+    "Second-Chance Specialist": 26,
+    "Glue Role Player / Hustle Forward": 39,
+    "High-Volume 3-Point Gunner": 103,
+    "Point-of-Attack Stopper": 20,
+    "Versatile Facilitator / Combo Big": 30,
+    "Putback Specialist": 74,
+    "Switchable Forward Defender": 38,
+    "Non-Impact Role Player": 37,
+    "Free-Throw Magnet Scorer": 37,
+    "Effort Defensive Role Player": 23,
+    "3-and-D Big": 59,
+    "Movement Shooter": 77,
+    "Two-Way Guard": 17,
+    "Deep Range Specialist": 56,
+    "Gravity/Space Creator": 30,
+    "Floor General": 57
+  }
+}
