@@ -2,7 +2,6 @@ import os
 import re
 import json
 import time
-import sys
 import hashlib
 import subprocess
 from datetime import datetime
@@ -252,7 +251,7 @@ def run_pipeline_local():
 
     # Use absolute path to the script; keep cwd=PIPELINE_DIR so any relative paths inside
     # orchestrate.py (like notebooks/ …) resolve correctly.
-    cmd = [sys.executable, str(orch)]  # <-- use the same venv as the app
+    cmd = ["python", str(orch)]
     proc = subprocess.Popen(
         cmd,
         cwd=str(PIPELINE_DIR),
@@ -261,6 +260,7 @@ def run_pipeline_local():
         stderr=subprocess.STDOUT,
         text=True,
     )
+
     with st.status("Running pipeline...", expanded=True) as status:
         for line in iter(proc.stdout.readline, ""):
             if not line:
@@ -483,50 +483,52 @@ with tab_roster:
 
 # Match-ups
 with tab_matchups:
-    st.subheader("Match-up Planner")
-    paths = latest_artifacts()
-    if not paths or not paths["processed"].exists():
-        st.info("Run pipeline first.")
-    else:
-        df = load_parquet(paths["processed"]).copy()
-        TEAM_COL = "team" if "team" in df.columns else ("college" if "college" in df.columns else None)
-        if TEAM_COL is None or "cluster" not in df.columns:
-            st.warning("Expected columns not found (need 'cluster' and either 'team' or 'college').")
-        else:
-            summary = load_json_file(paths["summary"]) if paths["summary"].exists() else {}
-            arch_map = (summary.get("archetype_names") or {})
-            teams = sorted(df[TEAM_COL].dropna().unique()) if TEAM_COL in df.columns else []
-            left, right = st.columns(2)
-            my_team = left.selectbox("My Team", teams, key="myteam")
-            opp_team = right.selectbox("Opponent", teams, key="oppteam")
-            if "season" in df.columns and my_team and opp_team:
-                seasons_left = sorted(df.loc[df[TEAM_COL] == my_team, "season"].dropna().unique())
-                seasons_right = sorted(df.loc[df[TEAM_COL] == opp_team, "season"].dropna().unique())
-                cL, cR = st.columns(2)
-                my_season = cL.selectbox("Season (My Team)", seasons_left) if seasons_left else None
-                opp_season = cR.selectbox("Season (Opponent)", seasons_right) if seasons_right else None
-            else:
-                my_season = opp_season = None
-            def mix(d: pd.DataFrame):
-                m = d.groupby("cluster").size().rename("count").reset_index()
-                m["archetype"] = m["cluster"].astype(str).map(arch_map).fillna(m["cluster"].astype(str))
-                return m[["cluster", "archetype", "count"]].sort_values("count", ascending=False)
-            dL = df[df[TEAM_COL] == my_team]; dR = df[df[TEAM_COL] == opp_team]
-            if my_season is not None and "season" in df.columns:
-                dL = dL[dL["season"] == my_season]
-            if opp_season is not None and "season" in df.columns:
-                dR = dR[dR["season"] == opp_season]
-            cols = st.columns(2)
-            with cols[0]:
-                st.caption(f"{my_team} — archetype mix")
-                st.dataframe(mix(dL), use_container_width=True)
-            with cols[1]:
-                st.caption(f"{opp_team} — archetype mix")
-                st.dataframe(mix(dR), use_container_width=True)
-            st.markdown("**Coaching heuristics**")
-            st.write("- Add rim protection vs heavy paint attacks.")
-            st.write("- Add shooting vs packed paint or zone looks.")
-            st.write("- Add on-ball creation vs switch-heavy, low-foul teams.")
+    st.subheader("Coming Soon")
+    
+    # st.subheader("Match-up Planner")
+    # paths = latest_artifacts()
+    # if not paths or not paths["processed"].exists():
+    #     st.info("Run pipeline first.")
+    # else:
+    #     df = load_parquet(paths["processed"]).copy()
+    #     TEAM_COL = "team" if "team" in df.columns else ("college" if "college" in df.columns else None)
+    #     if TEAM_COL is None or "cluster" not in df.columns:
+    #         st.warning("Expected columns not found (need 'cluster' and either 'team' or 'college').")
+    #     else:
+    #         summary = load_json_file(paths["summary"]) if paths["summary"].exists() else {}
+    #         arch_map = (summary.get("archetype_names") or {})
+    #         teams = sorted(df[TEAM_COL].dropna().unique()) if TEAM_COL in df.columns else []
+    #         left, right = st.columns(2)
+    #         my_team = left.selectbox("My Team", teams, key="myteam")
+    #         opp_team = right.selectbox("Opponent", teams, key="oppteam")
+    #         if "season" in df.columns and my_team and opp_team:
+    #             seasons_left = sorted(df.loc[df[TEAM_COL] == my_team, "season"].dropna().unique())
+    #             seasons_right = sorted(df.loc[df[TEAM_COL] == opp_team, "season"].dropna().unique())
+    #             cL, cR = st.columns(2)
+    #             my_season = cL.selectbox("Season (My Team)", seasons_left) if seasons_left else None
+    #             opp_season = cR.selectbox("Season (Opponent)", seasons_right) if seasons_right else None
+    #         else:
+    #             my_season = opp_season = None
+    #         def mix(d: pd.DataFrame):
+    #             m = d.groupby("cluster").size().rename("count").reset_index()
+    #             m["archetype"] = m["cluster"].astype(str).map(arch_map).fillna(m["cluster"].astype(str))
+    #             return m[["cluster", "archetype", "count"]].sort_values("count", ascending=False)
+    #         dL = df[df[TEAM_COL] == my_team]; dR = df[df[TEAM_COL] == opp_team]
+    #         if my_season is not None and "season" in df.columns:
+    #             dL = dL[dL["season"] == my_season]
+    #         if opp_season is not None and "season" in df.columns:
+    #             dR = dR[dR["season"] == opp_season]
+    #         cols = st.columns(2)
+    #         with cols[0]:
+    #             st.caption(f"{my_team} — archetype mix")
+    #             st.dataframe(mix(dL), use_container_width=True)
+    #         with cols[1]:
+    #             st.caption(f"{opp_team} — archetype mix")
+    #             st.dataframe(mix(dR), use_container_width=True)
+    #         st.markdown("**Coaching heuristics**")
+    #         st.write("- Add rim protection vs heavy paint attacks.")
+    #         st.write("- Add shooting vs packed paint or zone looks.")
+    #         st.write("- Add on-ball creation vs switch-heavy, low-foul teams.")
 
 # Upload & Classify
 with tab_upload:

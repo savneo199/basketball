@@ -1,4 +1,5 @@
 {
+  "n_pca": 10,
   "best_k": 6,
   "metrics": {
     "k": [
@@ -30,28 +31,28 @@
     "inertia": [
       29771.0277614135,
       28272.3533816218,
-      27248.482952810868,
+      27248.482952810864,
       26355.385496959658,
-      25512.764146853056,
+      25512.764146853053,
       24852.022163564547,
       24361.93402376985,
-      23716.25178164498,
+      23716.251781644976,
       23205.14464824461,
-      22793.75320143654,
+      22793.753201436542,
       22394.591273952345,
-      21907.177244143335,
+      21907.17724414333,
       21647.07770219592,
       21288.43302892188,
       20947.996552820015,
       20664.536901651765,
-      20429.710595721204,
-      20152.16625996825,
-      19878.34388049511,
+      20429.710595721208,
+      20152.166259968246,
+      19878.343880495115,
       19723.044746026557,
-      19331.803394776845,
+      19331.80339477684,
       19105.03730987493,
       18938.68865755982,
-      18828.769784052573
+      18828.769784052576
     ],
     "silhouette": [
       0.14261585509809416,
@@ -132,18 +133,10 @@
       75.22091760522214
     ],
     "plots": {
-      "elbow": "artifacts/elbow_plot.png",
-      "silhouette": "artifacts/silhouette_plot.png",
-      "davies_bouldin": "artifacts/db_plot.png",
-      "calinski_harabasz": "artifacts/ch_plot.png"
+      "elbow": "/vol/bitbucket/sn1624/data-driven-framework-for-athlete-profiling/artifacts/run_20250826_005318/elbow_plot.png",
+      "silhouette": "/vol/bitbucket/sn1624/data-driven-framework-for-athlete-profiling/artifacts/run_20250826_005318/silhouette_plot.png",
+      "davies_bouldin": "/vol/bitbucket/sn1624/data-driven-framework-for-athlete-profiling/artifacts/run_20250826_005318/db_plot.png",
+      "calinski_harabasz": "/vol/bitbucket/sn1624/data-driven-framework-for-athlete-profiling/artifacts/run_20250826_005318/ch_plot.png"
     }
-  },
-  "best_k_silhouette": 6,
-  "best_k_weighted": 25,
-  "weights": {
-    "sil_pct": 1,
-    "db_pct": 0.0,
-    "ch_pct": 0.0
-  },
-  "n_pca": 10
+  }
 }
