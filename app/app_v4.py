@@ -252,6 +252,116 @@ def validate_team_cols(cols: set) -> list:
             missing.append(f"- {label} (one of: {', '.join(sorted(alts))})")
     return missing
 
+def _load_inference_assets(latest_dir: Path):
+    """
+    Tries to load an all-in-one sklearn Pipeline first.
+    Falls back to separate scaler + pca + kmeans + feature list if available.
+    Returns a dict describing what was loaded.
+    """
+    assets = {}
+    try:
+        pipe_path = latest_dir / "inference_pipeline.joblib"
+        if pipe_path.exists():
+            assets["pipeline"] = joblib.load(pipe_path)
+            assets["mode"] = "pipeline"
+            return assets
+
+        # Fallback pieces
+        kmeans_path = latest_dir / "kmeans_model.joblib"
+        scaler_path = latest_dir / "scaler.joblib"
+        pca_path    = latest_dir / "pca.joblib"
+        feats_path  = latest_dir / "features.json"
+        if not feats_path.exists():
+            # common alternate name
+            feats_path = latest_dir / "feature_order.json"
+
+        if kmeans_path.exists():
+            assets["kmeans"] = joblib.load(kmeans_path)
+        if scaler_path.exists():
+            assets["scaler"] = joblib.load(scaler_path)
+        if pca_path.exists():
+            assets["pca"] = joblib.load(pca_path)
+        if feats_path.exists():
+            assets["features"] = json.loads(feats_path.read_text())
+
+        have = set(assets.keys())
+        if "kmeans" in have and ("features" in have or hasattr(assets["kmeans"], "feature_names_in_")):
+            assets["mode"] = "pieces"
+            return assets
+
+        assets["mode"] = "none"
+        return assets
+    except Exception as e:
+        st.error(f"Failed to load inference assets: {e}")
+        assets["mode"] = "error"
+        return assets
+
+
+def _predict_archetypes(df_players: pd.DataFrame, latest_dir: Path) -> pd.DataFrame:
+    """
+    Takes a player-level DataFrame (columns slugified to match training),
+    runs the latest inference assets, and returns df with ['cluster', 'Archetype'].
+    """
+    assets = _load_inference_assets(latest_dir)
+    if assets.get("mode") in ("none", "error"):
+        raise RuntimeError(
+            "Inference assets not found. Expected 'inference_pipeline.joblib' or "
+            "kmeans/scaler/pca + features. Run training once with saving enabled (see snippet below)."
+        )
+
+    # Load cluster name mapping (best-effort)
+    arch_map = {}
+    summary_path = latest_dir / "cluster_summary.json"
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text())
+            # try a few common keys
+            arch_map = summary.get("archetype_names") or summary.get("archetype_map") or {}
+            # normalize keys to str
+            arch_map = {str(k): v for k, v in arch_map.items()}
+        except Exception:
+            pass
+
+    # Prepare X and predict
+    if assets["mode"] == "pipeline":
+        pipe = assets["pipeline"]
+        X = df_players.copy()
+        preds = pipe.predict(X)
+    else:
+        # pieces mode
+        model = assets["kmeans"]
+        # Resolve feature order
+        if "features" in assets:
+            feat_cols = list(assets["features"])
+        elif hasattr(model, "feature_names_in_"):
+            feat_cols = list(model.feature_names_in_)
+        else:
+            raise RuntimeError("No feature list available for inference.")
+
+        # keep only needed features, coerce numeric
+        X = df_players.copy()
+        missing = [c for c in feat_cols if c not in X.columns]
+        if missing:
+            raise RuntimeError(f"Your uploaded data is missing expected columns: {missing[:10]}{'...' if len(missing)>10 else ''}")
+
+        X = X[feat_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0)
+
+        # transform
+        if "scaler" in assets:
+            X = assets["scaler"].transform(X)
+        if "pca" in assets:
+            X = assets["pca"].transform(X)
+
+        preds = model.predict(X)
+
+    # Build result
+    out = df_players.copy()
+    out["cluster"] = preds
+    out["Archetype"] = [arch_map.get(str(int(c)), f"Cluster {int(c)}") for c in preds]
+    return out
+
+
+
 # Pipeline runner
 def run_pipeline():
     """Run orchestrate.py locally"""
@@ -568,7 +678,126 @@ with tab_upload:
                 with st.expander("Preview (first 5 rows, individual)"):
                     st.dataframe(df_ind.head(), use_container_width=True)
                 with st.expander("Preview (first 5 rows, team)"):
+        
                     st.dataframe(df_team.head(), use_container_width=True)
+
+    # if st.button("Validate & Save"):
+    #     if not team_display_in or not season_in or not up_ind or not up_team:
+    #         st.error("Please provide team, season, and both CSV files.")
+    #     else:
+    #         # Normalize team to our internal key (lowercased words)
+    #         team_key = COLLEGE_MAP_INV.get(team_display_in.strip(), team_display_in.strip().lower())
+    #         # Read and slugify both CSVs for validation
+    #         try:
+    #             df_ind_raw = pd.read_csv(up_ind)
+    #             df_ind = slugify_columns(df_ind_raw)
+    #             df_team_raw = pd.read_csv(up_team)
+    #             df_team = slugify_columns(df_team_raw)
+    #         except Exception as e:
+    #             st.error(f"Failed to read CSVs: {e}")
+    #             st.stop()
+
+    #         miss_ind = validate_individual_cols(set(df_ind.columns))
+    #         miss_team = validate_team_cols(set(df_team.columns))
+
+    #         if miss_ind or miss_team:
+    #             st.error("Validation failed. Please fix the following:")
+    #             if miss_ind:
+    #                 st.write("**individual_stats_overall.csv**")
+    #                 st.code("\n".join(miss_ind))
+    #             if miss_team:
+    #                 st.write("**team_stats.csv**")
+    #                 st.code("\n".join(miss_team))
+    #         else:
+    #             # Save originals to the expected raw folder structure
+    #             dest_dir = RAW_BASE / team_key / season_in
+    #             dest_dir.mkdir(parents=True, exist_ok=True)
+    #             ind_path = dest_dir / "individual_stats_overall.csv"
+    #             team_path = dest_dir / "team_stats.csv"
+    #             ind_path.write_bytes(up_ind.getvalue())
+    #             team_path.write_bytes(up_team.getvalue())
+    #             st.success(f"Saved files to: {dest_dir}")
+
+    #             # Keep context for the next rerun (when user clicks "Classify now")
+    #             st.session_state["last_upload"] = {
+    #                 "team_display": team_display_in,
+    #                 "team_key": team_key,
+    #                 "season": season_in,
+    #                 "dest_dir": str(dest_dir),
+    #                 "ind_path": str(ind_path),
+    #                 "team_path": str(team_path),
+    #             }
+
+    #             # Quick preview (slugified headers) for user sanity
+    #             with st.expander("Preview (first 5 rows, individual)"):
+    #                 st.dataframe(df_ind.head(), use_container_width=True)
+    #             with st.expander("Preview (first 5 rows, team)"):
+    #                 st.dataframe(df_team.head(), use_container_width=True)
+
+    # --- NEW: Infer-only classification (outside the Validate & Save block) ---
+    # st.markdown("---")
+    # st.subheader("Classify now (no retrain)")
+
+    if st.button("Classify uploaded roster now", key="infer_now"):
+        latest = latest_artifacts()
+        if not latest or not Path(latest["root"]).exists():
+            st.error("No latest artifacts found. Run training once to produce a model.")
+            st.stop()
+
+        # Prefer the most recent saved upload from session_state, otherwise derive from inputs
+        ctx = st.session_state.get("last_upload", None)
+        if ctx:
+            ind_path = Path(ctx["ind_path"])
+            team_display = ctx["team_display"]
+            season = ctx["season"]
+        else:
+            # Fallback: build from current inputs
+            if not team_display_in or not season_in:
+                st.error("Provide Team and Season, or upload/save first.")
+                st.stop()
+            team_key = COLLEGE_MAP_INV.get(team_display_in.strip(), team_display_in.strip().lower())
+            ind_path = RAW_BASE / team_key / season_in / "individual_stats_overall.csv"
+            team_display = team_display_in
+            season = season_in
+
+        if not ind_path.exists():
+            st.error(f"Expected roster file not found at: {ind_path}")
+            st.stop()
+
+        # Read & slugify, then infer
+        try:
+            df_ind_now = pd.read_csv(ind_path)
+            df_ind_now = slugify_columns(df_ind_now)
+        except Exception as e:
+            st.error(f"Failed to read saved individual CSV: {e}")
+            st.stop()
+
+        try:
+            preds_df = _predict_archetypes(df_ind_now, latest["root"])
+        except Exception as e:
+            st.error(f"Inference failed: {e}")
+            st.info(
+                "If this is the first time, ensure your training saves an "
+                "'inference_pipeline.joblib' (or separate scaler/pca/features)."
+            )
+            st.stop()
+
+        # Display a compact view
+        show_cols = []
+        for c in ["player_name", "player", "player_ind", "player_number_ind", "position", "minutes_tot_ind", "scoring_pts_ind"]:
+            if c in preds_df.columns:
+                show_cols.append(c)
+        show_cols += [c for c in ["cluster", "Archetype"] if c not in show_cols]
+
+        st.success(f"Classification complete for {team_display} — {season}.")
+        st.dataframe(preds_df[show_cols] if show_cols else preds_df, use_container_width=True)
+
+        st.download_button(
+            "Download classifications (CSV)",
+            data=preds_df.to_csv(index=False).encode(),
+            file_name=f"{team_display}_{season}_archetypes.csv",
+            mime="text/csv",
+        )
 
     if st.button("Run pipeline now on all data"):
         rid = run_pipeline()
@@ -581,4 +810,4 @@ with tab_upload:
             st.cache_data.clear()
             st.cache_resource.clear()
             st.success("Refreshed. Go to the 'Roster' tab to view the new team-season, select it, and see archetypes.")
-
+            
