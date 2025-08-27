@@ -1,4 +1,3 @@
-
 import os, sys, json, shutil, datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -47,6 +46,33 @@ def _update_latest_pointer(run_dir: Path):
                 latest.unlink()
         shutil.copytree(run_dir, latest)
 
+# ---- Robust notebook path resolution ----
+def _resolve_nb_path(nb_path_str: str, cfg_path: Path) -> Path:
+    """
+    Resolve a notebook path that may be relative to either:
+      - the pipeline/ folder (where this file and config.yaml live), or
+      - the repo root (one level up from pipeline/).
+    Returns an absolute Path (first found).
+    """
+    p = Path(nb_path_str)
+    if p.is_absolute():
+        return p
+
+    pipeline_dir = cfg_path.parent            # .../pipeline
+    repo_root = pipeline_dir.parent           # .../
+
+    candidates = [
+        (pipeline_dir / p).resolve(),         # pipeline/notebooks/...
+        (repo_root / p).resolve(),            # notebooks/...
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+
+    # Nothing found: return the first candidate for clearer downstream error context
+    return candidates[0]
+# -----------------------------------------
+
 def main(config_path: str = None):
     cfg_path = Path(config_path) if config_path else HERE / "config.yaml"
     cfg = load_config(cfg_path)
@@ -66,8 +92,8 @@ def main(config_path: str = None):
     else:
         # try relative to (a) config.yaml dir (pipeline/), (b) repo root (pipeline/..)
         candidates = [
-            (cfg_path.parent / p).resolve(),    # pipeline/data/...
-            (cfg_path.parent.parent / p).resolve(),  # repo_root/data/...
+            (cfg_path.parent / p).resolve(),        # pipeline/data/...
+            (cfg_path.parent.parent / p).resolve(), # repo_root/data/...
         ]
 
     data_dir_abs = next((c for c in candidates if c.exists()), candidates[-1])
@@ -83,28 +109,34 @@ def main(config_path: str = None):
         "data_dir": str(data_dir_abs),   # pass absolute path to notebooks
     }
 
-    
-    
-
     executed_dir = Path(fq_artifacts["dir"]) / "_executed_runs"
     executed_dir.mkdir(parents=True, exist_ok=True)
 
-    # Notebook order
-    notebooks = cfg["notebooks"]
-    order = [
-        ("preprocess", notebooks["preprocess"]),
-        ("explore",    notebooks["explore"]),
-        ("train",      notebooks["train"]),
+    # --- Resolve notebook paths robustly ---
+    notebooks_cfg = cfg.get("notebooks", {})
+    stages = [
+        ("preprocess", notebooks_cfg.get("preprocess")),
+        ("explore",    notebooks_cfg.get("explore")),
+        ("train",      notebooks_cfg.get("train")),
     ]
+
+    order = []
+    for stage_name, nb_rel in stages:
+        if not nb_rel:
+            continue
+        nb_path = _resolve_nb_path(nb_rel, cfg_path)
+        print(f"[resolve] {stage_name}: {nb_rel} -> {nb_path}")
+        order.append((stage_name, nb_path))
+    # --- End resolve ---
 
     # Run all
     for stage, nb_path in order:
         print(f"=== Running stage: {stage} ===")
-        out_ipynb = executed_dir / f"{Path(nb_path).stem}__executed.ipynb"
+        out_ipynb = executed_dir / f"{nb_path.stem}__executed.ipynb"
         try:
             execute_notebook(
                 notebook_path=str(nb_path),
-                working_dir=str(Path(nb_path).parent) if Path(nb_path).parent.exists() else str(HERE),
+                working_dir=str(nb_path.parent) if nb_path.parent.exists() else str(HERE),
                 inject_context={**context, "_runtime_context_name": runtime_name},
                 timeout=1800,
                 kernel_name="python3",  # let nbclient resolve; change if your kernel is named differently
