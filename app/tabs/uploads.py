@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from get_paths import RAW_BASE, ART_DIR
-from helpers import (
+from helpers.helpers import (
     norm_key, slugify_columns, read_slug_csv, validate_pair, summarise_saved,
     extract_zip_file, COLLEGE_MAP,
 )

@@ -2,13 +2,12 @@ import plotly.express as px
 import pandas as pd
 import streamlit as st
 
-from helpers import latest_artifacts, load_json_file
+from helpers.helpers import latest_artifacts, load_json_file
 from run_pipeline import run_pipeline
 
 def render():
     colA, colB = st.columns([1, 1])
     with colA:
-        st.subheader("Run pipeline on current data - GitHub")
         st.subheader("Run pipeline on current data")
         if st.button("Run pipeline now"):
             rid = run_pipeline()
