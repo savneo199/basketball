@@ -8,7 +8,6 @@ from run_pipeline import run_pipeline
 def render():
     colA, colB = st.columns([1, 1])
     with colA:
-        st.subheader("Run pipeline on current data")
         if st.button("Run pipeline now"):
             rid = run_pipeline()
             if rid:
@@ -19,28 +18,34 @@ def render():
             st.cache_resource.clear()
             st.success("Refreshed")
 
-    st.subheader("Latest artifacts")
+
+    st.subheader("AI-driven player archetyping tool for NCAA Women’s Basketball")
+
+    st.markdown(
+        """
+    **WCBB Coach** helps you quickly understand **player roles and styles** across NCAA women’s basketball.  
+    We use game data to group players into **archetypes** (e.g., rim protectors, spot-up wings, on-ball creators), so you can scan a roster, find comparable players, and spot lineup fits faster.
+    """
+    )
+
+    with st.expander("What you'll find in the tabs"):
+        st.markdown(
+            """
+    - **Roster Overview:** See your team (or an opponent) broken down by archetype and usage at a glance.  
+    - **Player Finder:** Search any player and view their archetype, core stats, and recent form.  
+    - **Archetypes:** Read short definitions, key stats, and typical strengths/limitations for each archetype.  
+    - **Compare Players:** Pick two players to compare profiles, shot mix, and impact metrics side-by-side.  
+    - **Methodology (optional):** A quick overview of how the model groups players (for context, not scouting).
+    """
+        )
+        
+    st.subheader("Cluster Composition by Archetype")
     paths = latest_artifacts()
     if not paths:
         st.info("No artifacts yet. Run the pipeline.")
         return
 
-    cols = st.columns(3)
-    cols[0].metric("Processed parquet", "✅" if paths["processed"].exists() else "❌")
-    cols[1].metric("Model", "✅" if paths["model"].exists() else "❌")
-    cols[2].metric("Summary", "✅" if paths["summary"].exists() else "❌")
-
-    sel = load_json_file(paths["selection"]) if paths["selection"].exists() else {}
     summary = load_json_file(paths["summary"]) if paths["summary"].exists() else {}
-    n_pca = sel.get("n_pca") or summary.get("selected", {}).get("pca_components")
-    best_k = sel.get("best_k") or summary.get("selected", {}).get("n_clusters")
-    sil = (summary.get("scores", {}) or {}).get("silhouette")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("PCA components", n_pca if n_pca is not None else "—")
-    c2.metric("Clusters (k)", best_k if best_k is not None else "—")
-    c3.metric("Silhouette", f"{sil:.3f}" if isinstance(sil, (int, float)) else "—")
-
     cluster_sizes = (summary.get("cluster_sizes") or {})
     if not cluster_sizes:
         st.info("No 'cluster_sizes' found in cluster_summary.json.")
@@ -64,7 +69,6 @@ def render():
     fig.update_layout(
         legend_title_text="Archetypes",
         margin=dict(l=10, r=10, t=30, b=10),
-        title_text="Cluster Composition by Archetype"
     )
     st.plotly_chart(fig, use_container_width=True)
     st.caption("Counts by archetype")
