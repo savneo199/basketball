@@ -43,7 +43,7 @@ def load_json_file(path: Path) -> dict:
 def latest_artifacts():
     latest = ART_DIR / "latest"
     if not latest.exists():
-        st.warning("No latest folder found.")
+        st.warning(f"No latest folder found in {latest}")
         return None
     return {
         "root": latest,
