@@ -125,115 +125,6 @@ def render():
             st.session_state[CART_KEY] = cart
             if len(cart) >= 3:
                 st.warning("Compare limit is 3 players. Extra selections were ignored.")
-
-    # ---------------- Inline comparison panel ----------------
-    cart = st.session_state[CART_KEY]
-    if cart:
-        st.markdown("#### Comparison")
-
-        # Clear/remove controls
-        cA, cB = st.columns([1, 4])
-        with cA:
-            if st.button("Clear all"):
-                st.session_state[CART_KEY] = []
-                st.rerun()
-        with cB:
-            chip_cols = st.columns(len(cart))
-            for i, it in enumerate(list(cart)):
-                with chip_cols[i]:
-                    st.caption(f"{it['player_ind']} — {it['college']} ({it['season']})")
-                    if st.button("Remove", key=f"rm_{i}"):
-                        st.session_state[CART_KEY].pop(i)
-                        st.rerun()
-
-        # Fetch rows from full df (not just current view)
-        def _num(v):
-            try:
-                return float(v) if v is not None and not pd.isna(v) else 0.0
-            except Exception:
-                return 0.0
-
-        rows = []
-        for it in st.session_state[CART_KEY]:
-            mask = (
-                (df["player_ind"].astype(str) == it["player_ind"]) &
-                (df["season"].astype(str) == it["season"]) &
-                (df["college"].astype(str) == it["college"])
-            )
-            sub = df[mask]
-            if not sub.empty:
-                rows.append(sub.iloc[0])
-
-        if rows:
-            # KPIs per player
-            for r in rows:
-                c1, c2, c3, c4, c5 = st.columns(5)
-                c1.metric("PTS/G", f"{_num(r.get('pts_per_game')):.1f}")
-                c2.metric("REB/G", f"{_num(r.get('reb_per_game')):.1f}")
-                c3.metric("AST/G", f"{_num(r.get('ast_per_game')):.1f}")
-                c4.metric("STL/G", f"{_num(r.get('stl_per_game')):.1f}")
-                c5.metric("BLK/G", f"{_num(r.get('blk_per_game')):.1f}")
-                st.caption(f"{r.get('player_ind','')} — {r.get('college','')} ({r.get('season','')})")
-
-            # Radar chart
-            import plotly.graph_objects as go
-            COMPARE_METRICS = [
-                ("pts_per_game", "PTS/G"),
-                ("reb_per_game", "REB/G"),
-                ("ast_per_game", "AST/G"),
-                ("stl_per_game", "STL/G"),
-                ("blk_per_game", "BLK/G"),
-                ("eFG_pct", "eFG%"),
-                ("USG_pct", "USG%"),
-            ]
-            cats = [n for _, n in COMPARE_METRICS]
-            fig = go.Figure()
-
-            # per-metric max for normalization
-            max_by_metric = []
-            for k, _ in COMPARE_METRICS:
-                vals = []
-                for rr in rows:
-                    v = _num(rr.get(k))
-                    if k == "eFG_pct" or k.endswith("_pct"):
-                        if v <= 1.0:
-                            v *= 100.0
-                    vals.append(v)
-                max_by_metric.append(max(vals) if vals else 1.0)
-
-            for rr in rows:
-                vals = []
-                for (k, _), vmax in zip(COMPARE_METRICS, max_by_metric):
-                    v = _num(rr.get(k))
-                    if k == "eFG_pct" or k.endswith("_pct"):
-                        if v <= 1.0:
-                            v *= 100.0
-                    vals.append(0.0 if vmax == 0 else v / vmax)
-                vals.append(vals[0])
-                label = f"{rr.get('player_ind','')} — {rr.get('college','')} ({rr.get('season','')})"
-                fig.add_trace(go.Scatterpolar(r=vals, theta=cats + [cats[0]], fill="toself", name=label))
-
-            fig.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-                showlegend=True, height=520, margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Side-by-side table
-            show_cols = ["player_ind","college","season","position","Archetype",
-                         "pts_per_game","reb_per_game","ast_per_game","stl_per_game","blk_per_game","eFG_pct","USG_pct"]
-            show_cols = rename_columns(show_cols)
-            table = pd.DataFrame([{c: r.get(c) for c in show_cols if c in r.index} for r in rows])
-            if "eFG_pct" in table.columns:
-                table["eFG_pct"] = table["eFG_pct"].apply(lambda v: (_num(v)*100.0 if _num(v) <= 1 else _num(v)))
-            table["USG_pct"] = table.get("USG_pct", pd.Series(dtype=float)).apply(_num)
-            st.dataframe(table, use_container_width=True)
-        else:
-            st.info("No matching rows found for items in the compare cart.")
-    else:
-        st.caption("Tip: tick **Compare?** for up to 3 players and click **Add checked to compare**.")
-
     # ---------------- Possible lineup ----------------
     st.markdown("---")
     st.subheader("Possible lineup")
@@ -342,6 +233,134 @@ def render():
             st.plotly_chart(fig, use_container_width=True)
             st.caption("Tip: hover a circle to see stats. (Install `streamlit-plotly-events` to enable click.)")
 
+
+    # ---------------- Inline comparison panel ----------------
+    cart = st.session_state[CART_KEY]
+    if cart:
+        st.markdown("#### Comparison")
+
+        # Clear/remove controls
+        cA, cB = st.columns([1, 4])
+        with cA:
+            if st.button("Clear all"):
+                st.session_state[CART_KEY] = []
+                st.rerun()
+        with cB:
+            chip_cols = st.columns(len(cart))
+            for i, it in enumerate(list(cart)):
+                with chip_cols[i]:
+                    st.caption(f"{it['player_ind']} — {it['college']} ({it['season']})")
+                    if st.button("Remove", key=f"rm_{i}"):
+                        st.session_state[CART_KEY].pop(i)
+                        st.rerun()
+
+        # Fetch rows from full df (not just current view)
+        def _num(v):
+            try:
+                return float(v) if v is not None and not pd.isna(v) else 0.0
+            except Exception:
+                return 0.0
+
+        rows = []
+        for it in st.session_state[CART_KEY]:
+            mask = (
+                (df["player_ind"].astype(str) == it["player_ind"]) &
+                (df["season"].astype(str) == it["season"]) &
+                (df["college"].astype(str) == it["college"])
+            )
+            sub = df[mask]
+            if not sub.empty:
+                rows.append(sub.iloc[0])
+
+        if rows:
+            # KPIs per player
+            for r in rows:
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("PTS/G", f"{_num(r.get('pts_per_game')):.1f}")
+                c2.metric("REB/G", f"{_num(r.get('reb_per_game')):.1f}")
+                c3.metric("AST/G", f"{_num(r.get('ast_per_game')):.1f}")
+                c4.metric("STL/G", f"{_num(r.get('stl_per_game')):.1f}")
+                c5.metric("BLK/G", f"{_num(r.get('blk_per_game')):.1f}")
+                st.caption(f"{r.get('player_ind','')} — {r.get('college','')} ({r.get('season','')})")
+
+            # Radar chart
+            import plotly.graph_objects as go
+            COMPARE_METRICS = [
+                ("pts_per_game", "PTS/G"),
+                ("reb_per_game", "REB/G"),
+                ("ast_per_game", "AST/G"),
+                ("stl_per_game", "STL/G"),
+                ("blk_per_game", "BLK/G"),
+                ("eFG_pct", "eFG%"),
+                ("USG_pct", "USG%"),
+            ]
+            cats = [n for _, n in COMPARE_METRICS]
+            fig = go.Figure()
+
+            # per-metric max for normalization
+            max_by_metric = []
+            for k, _ in COMPARE_METRICS:
+                vals = []
+                for rr in rows:
+                    v = _num(rr.get(k))
+                    if k == "eFG_pct" or k.endswith("_pct"):
+                        if v <= 1.0:
+                            v *= 100.0
+                    vals.append(v)
+                max_by_metric.append(max(vals) if vals else 1.0)
+
+            for rr in rows:
+                vals = []
+                for (k, _), vmax in zip(COMPARE_METRICS, max_by_metric):
+                    v = _num(rr.get(k))
+                    if k == "eFG_pct" or k.endswith("_pct"):
+                        if v <= 1.0:
+                            v *= 100.0
+                    vals.append(0.0 if vmax == 0 else v / vmax)
+                vals.append(vals[0])
+                label = f"{rr.get('player_ind','')} — {rr.get('college','')} ({rr.get('season','')})"
+                fig.add_trace(go.Scatterpolar(r=vals, theta=cats + [cats[0]], fill="toself", name=label))
+
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+                showlegend=True, height=520, margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig, use_container_width=True, key=f"cmp_radar_{team_display}_{season}")
+
+
+            # Side-by-side table
+            show_cols = ["player_ind","college","season","position","Archetype",
+                        "pts_per_game","reb_per_game","ast_per_game","stl_per_game",
+                        "blk_per_game","eFG_pct","USG_pct"]
+
+            table = pd.DataFrame([{c: r.get(c) for c in show_cols if c in r.index} for r in rows])
+
+            # tidy values
+            def _num(v):
+                try: return float(v) if v is not None and not pd.isna(v) else 0.0
+                except Exception: return 0.0
+
+            if "eFG_pct" in table.columns:
+                table["eFG_pct"] = table["eFG_pct"].apply(lambda v: (_num(v)*100.0 if _num(v) <= 1 else _num(v)))
+            if "USG_pct" in table.columns:
+                table["USG_pct"] = table["USG_pct"].apply(_num)
+
+            # 🔹 PRETTY HEADERS
+            from helpers.helpers import rename_columns
+            pretty_table = rename_columns(table.copy())
+
+            # 🔹 add vertical space between radar and table
+            st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+            st.dataframe(pretty_table, use_container_width=True)
+
+        else:
+            st.info("No matching rows found for items in the compare cart.")
+    else:
+        st.caption("Tip: tick **Compare?** for up to 3 players and click **Add checked to compare**.")
+
+    
     # ---------------- Notes ----------------
     st.markdown("---")
     st.subheader("Notes & Comments")
