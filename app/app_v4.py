@@ -3,7 +3,7 @@ from tabs import train_explore, historical_data, uploads, player_finder, compare
 
 st.set_page_config(page_title="Coach Scouting Dashboard", layout="wide")
 
-tab_train, tab_hist, tab_finder, tab_compare, tab_upload = st.tabs(
+tab_train, tab_hist, tab_upload = st.tabs(
     ["Train & Explore", "Team & Player Data", "Upload & Classify"]
 )
 
