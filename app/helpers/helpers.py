@@ -10,6 +10,8 @@ import streamlit as st
 
 from get_paths import ROOT, DATA_DIR, RAW_BASE, ART_DIR
 
+
+import streamlit as st
 # Hashing
 def hash_data_folder() -> str:
     h = hashlib.sha256()
@@ -41,6 +43,7 @@ def load_json_file(path: Path) -> dict:
 def latest_artifacts():
     latest = ART_DIR / "latest"
     if not latest.exists():
+        st.warning("No latest folder found.")
         return None
     return {
         "root": latest,
