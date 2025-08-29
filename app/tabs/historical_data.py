@@ -136,7 +136,7 @@ def render():
         with cA:
             if st.button("Clear all"):
                 st.session_state[CART_KEY] = []
-                st.stop()
+                st.rerun()
         with cB:
             chip_cols = st.columns(len(cart))
             for i, it in enumerate(list(cart)):
@@ -144,7 +144,7 @@ def render():
                     st.caption(f"{it['player_ind']} — {it['college']} ({it['season']})")
                     if st.button("Remove", key=f"rm_{i}"):
                         st.session_state[CART_KEY].pop(i)
-                        st.experimental_rerun()
+                        st.rerun()
 
         # Fetch rows from full df (not just current view)
         def _num(v):
