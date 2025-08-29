@@ -169,6 +169,207 @@ def render():
             st.caption("Tip: hover a circle to see stats. (Install `streamlit-plotly-events` to enable click.)")
 
 
+    
+
+    # ==================== Inline Compare (replace the old Compare tab) ====================
+
+    # Where to store selected players globally
+    CART_KEY = "compare_cart"
+    if CART_KEY not in st.session_state:
+        st.session_state[CART_KEY] = []  # list of dicts: {"player_ind","season","college"}
+
+    # Metrics used for comparison
+    COMPARE_METRICS = [
+        ("pts_per_game", "PTS/G"),
+        ("reb_per_game", "REB/G"),
+        ("ast_per_game", "AST/G"),
+        ("stl_per_game", "STL/G"),
+        ("blk_per_game", "BLK/G"),
+        ("eFG_pct", "eFG%"),   # 0–1 or 0–100 handled
+        ("USG_pct", "USG%"),
+    ]
+
+    ID_COLS = ["player_ind", "college", "season", "position", "Archetype", "player_number_ind"]
+
+    def _num(v):
+        try:
+            return float(v) if v is not None and not pd.isna(v) else 0.0
+        except Exception:
+            return 0.0
+
+    def _option_label(row: pd.Series) -> str:
+        return f"{row.get('player_ind','Player')} — {row.get('college','')} ({row.get('season','')})"
+
+    def _unique_key(row: pd.Series) -> tuple:
+        # Use (name, season, college) as a stable unique identifier
+        return (str(row.get("player_ind","")), str(row.get("season","")), str(row.get("college","")))
+
+    def _fetch_rows_from_cart(df_all: pd.DataFrame, cart: list[dict]) -> list[pd.Series]:
+        rows = []
+        for item in cart:
+            mask = (
+                (df_all.get("player_ind","").astype(str) == item.get("player_ind","")) &
+                (df_all.get("season","").astype(str) == item.get("season","")) &
+                (df_all.get("college","").astype(str) == item.get("college",""))
+            )
+            sub = df_all[mask]
+            if not sub.empty:
+                rows.append(sub.iloc[0])
+        return rows
+
+    def _radar_figure(rows: list[pd.Series]):
+        import plotly.graph_objects as go
+        cats = [name for _, name in COMPARE_METRICS]
+        fig = go.Figure()
+
+        # per-metric max for 0–1 normalization
+        max_by_metric = []
+        for key, _ in COMPARE_METRICS:
+            vals = []
+            for r in rows:
+                v = _num(r.get(key))
+                if key == "eFG_pct" or key.endswith("_pct"):
+                    if v <= 1.0:
+                        v *= 100.0
+                vals.append(v)
+            max_by_metric.append(max(vals) if vals else 1.0)
+
+        for r in rows:
+            vals = []
+            for (key, _), vmax in zip(COMPARE_METRICS, max_by_metric):
+                v = _num(r.get(key))
+                if key == "eFG_pct" or key.endswith("_pct"):
+                    if v <= 1.0:
+                        v *= 100.0
+                vals.append(0.0 if vmax == 0 else v / vmax)
+            vals.append(vals[0])  # close shape
+
+            fig.add_trace(go.Scatterpolar(
+                r=vals,
+                theta=cats + [cats[0]],
+                fill="toself",
+                name=_option_label(r),
+                hovertemplate="%{theta}: %{r:.2f}<extra></extra>",
+                showlegend=True,
+            ))
+
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+            showlegend=True,
+            height=520,
+            margin=dict(l=10, r=10, t=10, b=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        return fig
+
+    st.markdown("### Compare players")
+    enable_compare = st.toggle("Enable compare mode", value=False, help="Check up to 3 players to compare.")
+
+    if enable_compare:
+        # Build a small, selectable view from the current filter (team+season)
+        # Use raw columns; avoid rename_columns() so we keep consistent keys.
+        selectable_cols = [
+            "player_ind", "player_number_ind", "position", "Archetype",
+            "minutes_tot_ind", "mins_per_game",
+            "pts_per_game", "reb_per_game", "ast_per_game", "stl_per_game", "blk_per_game",
+            "eFG_pct", "USG_pct",
+            "college", "season",
+        ]
+        sel_view = filt[[c for c in selectable_cols if c in filt.columns]].copy()
+        if sel_view.empty:
+            st.info("No players in this selection.")
+        else:
+            sel_view.insert(0, "Compare?", False)  # editable checkbox column
+            # Use data_editor to allow ticking rows
+            edited = st.data_editor(
+                sel_view,
+                hide_index=True,
+                use_container_width=True,
+                num_rows="fixed",
+                column_config={
+                    "Compare?": st.column_config.CheckboxColumn(help="Tick to add to comparison"),
+                },
+            )
+
+            # Collect checked rows and add to cart (max 3 total)
+            if st.button("Add checked to compare"):
+                checked = edited[edited["Compare?"] == True]
+                if checked.empty:
+                    st.info("No rows were checked.")
+                else:
+                    cart = st.session_state[CART_KEY]
+                    for _, r in checked.iterrows():
+                        key = _unique_key(r)
+                        if len(cart) >= 3:
+                            break
+                        if not any(
+                            (c.get("player_ind",""), c.get("season",""), c.get("college","")) == key
+                            for c in cart
+                        ):
+                            cart.append({
+                                "player_ind": key[0],
+                                "season": key[1],
+                                "college": key[2],
+                            })
+                    st.session_state[CART_KEY] = cart
+                    if len(st.session_state[CART_KEY]) >= 3:
+                        st.warning("Compare limit is 3 players. Extra selections were ignored.")
+
+    # Show comparison panel if there are players in the cart
+    cart = st.session_state[CART_KEY]
+    if cart:
+        st.markdown("#### Comparison panel")
+        # Buttons to clear or remove individuals
+        cc1, cc2 = st.columns([1, 4])
+        with cc1:
+            if st.button("Clear all"):
+                st.session_state[CART_KEY] = []
+                st.stop()
+        with cc2:
+            # Show chips with remove buttons
+            chip_cols = st.columns(len(cart))
+            for i, item in enumerate(list(cart)):
+                with chip_cols[i]:
+                    label = f"{item['player_ind']} — {item['college']} ({item['season']})"
+                    st.caption(label)
+                    if st.button("Remove", key=f"rm_{i}"):
+                        st.session_state[CART_KEY].pop(i)
+                        st.experimental_rerun()
+
+        # Fetch full rows from the global processed DF (not only current team/season)
+        # Use the same processed dataset you loaded earlier in this tab `df`
+        rows = _fetch_rows_from_cart(df, st.session_state[CART_KEY])
+        if not rows:
+            st.info("No matching rows found for items in the cart.")
+        else:
+            # KPI strip for each
+            for r in rows:
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("PTS/G", f"{_num(r.get('pts_per_game')):.1f}")
+                c2.metric("REB/G", f"{_num(r.get('reb_per_game')):.1f}")
+                c3.metric("AST/G", f"{_num(r.get('ast_per_game')):.1f}")
+                c4.metric("STL/G", f"{_num(r.get('stl_per_game')):.1f}")
+                c5.metric("BLK/G", f"{_num(r.get('blk_per_game')):.1f}")
+                st.caption(_option_label(r))
+
+            st.markdown("---")
+            # Radar plot
+            fig = _radar_figure(rows)
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Side-by-side table
+            show_cols = ID_COLS + [k for k, _ in COMPARE_METRICS]
+            table = pd.DataFrame([{c: r.get(c) for c in show_cols} for r in rows])
+            if "eFG_pct" in table.columns:
+                table["eFG_pct"] = table["eFG_pct"].apply(lambda v: (_num(v) * 100.0 if _num(v) <= 1 else _num(v)))
+            table["USG_pct"] = table.get("USG_pct", pd.Series(dtype=float)).apply(_num)
+            st.dataframe(table, use_container_width=True)
+    else:
+        st.caption("Tip: toggle **Compare mode**, tick up to 3 players, then click **Add checked to compare**.")
+    # ==================== /Inline Compare ====================
+
+
 
     st.markdown("---")
     st.subheader("Notes & Comments")
