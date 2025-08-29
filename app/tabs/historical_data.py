@@ -5,7 +5,7 @@ from pathlib import Path
 from helpers.helpers import latest_artifacts, load_parquet, rename_columns, load_json_file, COLLEGE_MAP, COLLEGE_MAP_INV
 from helpers.archetype_positions import normalize_position, positions_for_archetype
 from helpers.court_builder import build_lineup_labels, make_lineup_figure
-
+from streamlit_plotly_events import plotly_events
 
 def render():
     st.subheader("Roster & Metrics")
@@ -52,8 +52,8 @@ def render():
         view = filt.drop(columns=drop_cols).copy()
     else:
         minimal_cols = [
-            "player_ind", "player_number_ind", "minutes_tot_ind", "Archetype", "scoring_pts_ind",
-            "ast_ind", "rebounds_tot_ind", "stl_ind", "gp_ind"
+            "player_ind", "player_number_ind", "mins_per_game", "Archetype", "pts_per_game",
+            "ast_per_game", "reb_per_game", "stl_per_game", "blk_per_game","eFG_pct", "gp_ind"
         ]
         cols = [c for c in minimal_cols if c in filt.columns]
         view = filt[cols].copy()
@@ -66,34 +66,20 @@ def render():
         file_name=f"{team_display}_{season}_players.csv",
         mime="text/csv",
     )
-
-    # Possible lineup map
+    # Possible lineup
     st.markdown("---")
     st.subheader("Possible lineup")
 
-    minutes_col = "minutes_tot_ind" if "minutes_tot_ind" in filt.columns else None
-    if minutes_col is None:
-        for alt in ["minutes_tot", "minutes", "mins"]:
-            if alt in filt.columns:
-                minutes_col = alt
-                break
+    minutes_col = "minutes_tot_ind" 
 
-    def _assign_slots_by_position(df_top5: pd.DataFrame) -> tuple[list[str], list[str]]:
-        """
-        Return (labels, slots_order) aligned to ['PG','SG','SF','PF','C'] using player positions.
-        If multiple players map to the same slot, we place the highest-minutes one in that slot
-        and cascade others to the next best available slot.
-        """
+    def assign_slots_by_position(df_top5: pd.DataFrame):
         slots = ["PG", "SG", "SF", "PF", "C"]
-        assigned: dict[str, pd.Series] = {}
-        leftovers: list[pd.Series] = []
+        assigned, leftovers = {}, []
 
-        # best attempt: direct normalized position, otherwise infer from archetype
         for _, row in df_top5.iterrows():
             raw_pos = str(row.get("position", "") or "")
             pos = normalize_position(raw_pos)
             if not pos:
-                # try infer from archetype if present
                 arc = str(row.get("Archetype", "") or "")
                 prefs = positions_for_archetype(arc)
                 pos = prefs[0] if prefs else ""
@@ -102,18 +88,12 @@ def render():
             else:
                 leftovers.append(row)
 
-        # cascade leftovers into remaining slots by reasonable preferences
         def pref_chain(pos_guess: str) -> list[str]:
-            # reasonable fallbacks by family
-            if pos_guess in ("PG", "SG"):   # guards
-                return ["PG", "SG", "SF", "PF", "C"]
-            if pos_guess == "SF":           # wing
-                return ["SF", "PF", "SG", "PG", "C"]
-            if pos_guess == "PF":           # big forward
-                return ["PF", "C", "SF", "SG", "PG"]
-            if pos_guess == "C":            # center
-                return ["C", "PF", "SF", "SG", "PG"]
-            return ["SF", "PF", "PG", "SG", "C"]  # unknown
+            if pos_guess in ("PG", "SG"):   return ["PG", "SG", "SF", "PF", "C"]
+            if pos_guess == "SF":           return ["SF", "PF", "SG", "PG", "C"]
+            if pos_guess == "PF":           return ["PF", "C", "SF", "SG", "PG"]
+            if pos_guess == "C":            return ["C", "PF", "SF", "SG", "PG"]
+            return ["SF", "PF", "PG", "SG", "C"]
 
         for row in leftovers:
             raw_pos = str(row.get("position", "") or "")
@@ -123,31 +103,70 @@ def render():
                 prefs = positions_for_archetype(arc)
                 guess = prefs[0] if prefs else ""
             for s in pref_chain(guess):
-                if s in slots and s not in assigned:
+                if s not in assigned:
                     assigned[s] = row
                     break
 
-        # build ordered labels + slots
-        labels, slots_order = [], []
-        for s in slots:
-            if s in assigned:
-                r = assigned[s]
-                name = (
-                    r["player_ind"] if "player_ind" in r and pd.notna(r["player_ind"])
-                    else r.get("player", r.get("player_name", "Player"))
-                )
-                arch = r.get("Archetype", "")
-                labels.append(f"{name} ({arch})" if arch else str(name))
-                slots_order.append(s)
-        return labels, slots_order
+        ordered_slots = [s for s in slots if s in assigned]
+        ordered_rows  = [assigned[s] for s in ordered_slots]
+        return ordered_rows, ordered_slots
 
-    if minutes_col is None or "player_ind" not in filt.columns:
-        st.info("Not enough data to build a lineup (need player names and minutes).")
+    if minutes_col is None:
+        st.info("Not enough data to build a lineup (need minutes).")
     else:
         top5 = filt.sort_values(minutes_col, ascending=False).head(5).reset_index(drop=True)
-        labels, slots_order = _assign_slots_by_position(top5)
-        fig = make_lineup_figure(labels, slots_order=slots_order)
-        st.plotly_chart(fig, use_container_width=True)
+        rows, slots_order = assign_slots_by_position(top5)
+
+        # Build label, number, stats lists in slot order
+        labels, numbers, stats_list, names_for_click = [], [], [], []
+        for r in rows:
+            name = r["player_ind"] 
+            arch = r["Archetype"]
+            labels.append(f"{name} ({arch})")
+
+            # get player number
+            num = ""
+            if "player_number_ind":
+                try:
+                    num = str(int(float(r["player_number_ind"])))
+                except Exception:
+                    num = str(r["player_number_ind"])
+            numbers.append(num)
+
+            stats_list.append({
+            "PTS/Game": r["pts_per_game"],
+            "AST/Game": r["ast_per_game"],
+            "REB/Game": r["reb_per_game"],
+            "STL/Game": r["stl_per_game"],
+            "BLK/Game": r["blk_per_game"],
+            "eFG%": r["eFG_pct"]*100,
+            })
+            names_for_click.append(str(name))
+
+        fig = make_lineup_figure(labels, title = "Possible lineup for " + team_display + " (" + season + ")", slots_order=slots_order, numbers=numbers, stats=stats_list)
+
+        # Optional click-to-inspect
+        try:
+            from streamlit_plotly_events import plotly_events
+            selected = plotly_events(fig, click_event=True, hover_event=False, select_event=False, key="lineup_click")
+            if selected:
+                idx = selected[0].get("pointIndex", selected[0].get("pointNumber", 0))
+                idx = int(idx)
+                if 0 <= idx < len(stats_list):
+                    s = stats_list[idx]
+                    nm = names_for_click[idx]
+                    st.markdown(f"**{nm} — quick stats**")
+                    c1, c2, c3, c4, c5 = st.columns(5)
+                    c1.metric("PTS/Game", f"{s['PTS/Game']:.3f}")
+                    c2.metric("AST/Game", f"{s['AST/Game']:.3f}")
+                    c3.metric("REB/Game", f"{s['REB/Game']:.3f}")
+                    c4.metric("BLK/Game", f"{s['BLK/Game']:.3f}")
+                    c5.metric("eFG%", f"{s['eFG%']:.3f}%" if s['eFG%'] is not None else "—")
+            else:
+                st.caption("Tip: click a circle to pin a stat card; hover for details.")
+        except Exception:
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption("Tip: hover a circle to see stats. (Install `streamlit-plotly-events` to enable click.)")
 
 
 
