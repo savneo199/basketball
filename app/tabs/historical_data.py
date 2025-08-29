@@ -223,6 +223,7 @@ def render():
             # Side-by-side table
             show_cols = ["player_ind","college","season","position","Archetype",
                          "pts_per_game","reb_per_game","ast_per_game","stl_per_game","blk_per_game","eFG_pct","USG_pct"]
+            show_cols = rename_columns(show_cols)
             table = pd.DataFrame([{c: r.get(c) for c in show_cols if c in r.index} for r in rows])
             if "eFG_pct" in table.columns:
                 table["eFG_pct"] = table["eFG_pct"].apply(lambda v: (_num(v)*100.0 if _num(v) <= 1 else _num(v)))
