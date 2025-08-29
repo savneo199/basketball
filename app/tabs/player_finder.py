@@ -7,6 +7,24 @@ from streamlit_searchbox import st_searchbox  # pip install streamlit-searchbox
 
 from helpers.helpers import latest_artifacts, load_parquet
 
+# top of player_finder.py
+import bisect
+
+@st.cache_data(show_spinner=False)
+def build_name_index(names: list[str]):
+    names_sorted = sorted(set(names))
+    lowers = [n.lower() for n in names_sorted]
+    return names_sorted, lowers
+
+def suggest_prefix(names_sorted: list[str], lowers: list[str], q: str, limit: int = 12) -> list[str]:
+    ql = q.lower()
+    i = bisect.bisect_left(lowers, ql)
+    out = []
+    while i < len(lowers) and lowers[i].startswith(ql) and len(out) < limit:
+        out.append(names_sorted[i]); i += 1
+    return out
+
+
 CORE_SHOW = [
     "player_ind", "college", "season", "position", "player_number_ind",
     "minutes_tot_ind", "mins_per_game",
@@ -50,8 +68,12 @@ def render():
     if "pf_query" not in st.session_state:
         st.session_state["pf_query"] = ""
 
+    names = _unique_names(df)
+    names_sorted, lowers = build_name_index(names)
+
     def _search(q: str) -> list[str]:
-        return _suggest(names, q, 12) if len(q.strip()) >= 2 else []
+        return suggest_prefix(names_sorted, lowers, q, 12) if len(q.strip()) >= 2 else []
+
 
     picked = st_searchbox(
         search_function=_search,
