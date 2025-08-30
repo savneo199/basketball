@@ -4,94 +4,142 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# We use PyArrow to inspect the schema safely (works for files or directory datasets)
+# ---------------- DuckDB connection (fast path) ----------------
+def _has_duckdb():
+    try:
+        import duckdb  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+@st.cache_resource(show_spinner=False)
+def _duckdb_conn(processed_path: Path):
+    """
+    Persistent DuckDB connection, reading the Parquet file or directory lazily.
+    """
+    import duckdb
+    con = duckdb.connect()  # in-memory is fine; we rely on parquet scan + result cache
+    con.execute("PRAGMA threads=4")
+    # Create a view over the Parquet dataset (file or folder). union_by_name helps across evolutions.
+    con.execute("""
+        CREATE OR REPLACE VIEW processed AS
+        SELECT * FROM read_parquet(?, union_by_name=true)
+    """, [str(processed_path)])
+    return con
+
+
+# ---------------- Safe PyArrow helpers (fallback path) ----------------
 def _as_str_path(p: Path | str) -> str:
     return str(p if isinstance(p, Path) else Path(p))
 
 @st.cache_data(ttl=600, show_spinner=False)
 def parquet_columns(processed_path: Path) -> list[str]:
-    """
-    Return the list of column names in the Parquet file or directory.
-    Falls back gracefully across file/dataset cases.
-    """
     path_str = _as_str_path(processed_path)
     try:
-        # Directory dataset or single file – dataset schema handles both
         import pyarrow.dataset as ds
         schema = ds.dataset(path_str).schema
         return list(schema.names)
     except Exception:
-        # Fallback to ParquetFile for single-file case
         try:
             import pyarrow.parquet as pq
             pf = pq.ParquetFile(path_str)
             return list(pf.schema_arrow.names)
         except Exception:
-            # Last resort: try reading a tiny sample with pandas to infer columns
             try:
                 df = pd.read_parquet(path_str)
                 return list(df.columns)
             except Exception:
                 return []
 
-
 def _safe_read_parquet(processed_path: Path, desired_cols: list[str]) -> pd.DataFrame:
-    """
-    Read only existing columns from Parquet to avoid ArrowInvalid when a requested column is missing.
-    If *none* of the desired columns exist, return an empty DataFrame (no crash).
-    """
     exist = set(parquet_columns(processed_path))
     use_cols = [c for c in desired_cols if c in exist]
-
     if not use_cols:
-        # Return empty frame – caller logic should handle empty results gracefully.
         return pd.DataFrame(columns=[])
-
     return pd.read_parquet(_as_str_path(processed_path), columns=use_cols)
 
 
-# ---- Team list (display names) ----
+# ---------------- Public, cached API (tries DuckDB first) ----------------
 @st.cache_data(ttl=600, show_spinner=False)
 def list_team_choices(processed_path: Path, college_map: dict[str, str]) -> list[str]:
+    if _has_duckdb():
+        con = _duckdb_conn(processed_path)
+        # Only scan 'college' column
+        df = con.execute("""
+            SELECT DISTINCT college FROM processed
+            WHERE college IS NOT NULL
+        """).df()
+        if df.empty:
+            return []
+        df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
+        disp = df[" college_norm"].map(college_map).fillna(df["college"].astype(str))
+        return sorted(disp.dropna().unique().tolist())
+
+    # Fallback
     df = _safe_read_parquet(processed_path, ["college"])
     if df.empty or "college" not in df.columns:
         return []
     df = df.dropna(subset=["college"]).copy()
     df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
     disp = df[" college_norm"].map(college_map).fillna(df["college"].astype(str))
-    teams = sorted(disp.dropna().unique().tolist())
-    return teams
+    return sorted(disp.dropna().unique().tolist())
 
 
-# ---- Seasons for a given team (norm key) ----
 @st.cache_data(ttl=600, show_spinner=False)
 def list_seasons_for_team(processed_path: Path, college_norm: str) -> list[str]:
-    df = _safe_read_parquet(processed_path, ["college", "season"])
-    if df.empty or not {"college", "season"}.issubset(df.columns):
+    if _has_duckdb():
+        con = _duckdb_conn(processed_path)
+        df = con.execute("""
+            SELECT DISTINCT season
+            FROM processed
+            WHERE lower(trim(college)) = ? AND season IS NOT NULL
+            ORDER BY season
+        """, [str(college_norm)]).df()
+        return df["season"].astype(str).tolist() if "season" in df.columns else []
+
+    # Fallback
+    df = _safe_read_parquet(processed_path, ["college","season"])
+    if df.empty or not {"college","season"}.issubset(df.columns):
         return []
-    df = df.dropna(subset=["college", "season"]).copy()
     df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
-    seasons = sorted(
-        df.loc[df[" college_norm"] == str(college_norm), "season"]
-          .astype(str)
-          .unique()
-          .tolist()
-    )
-    return seasons
+    out = (df.loc[df[" college_norm"] == str(college_norm), "season"]
+             .dropna().astype(str).sort_values().unique().tolist())
+    return out
 
 
-# ---- Pruned roster slice for team+season ----
 @st.cache_data(ttl=600, show_spinner=False)
 def team_season_view(processed_path: Path, college_norm: str, season: str) -> pd.DataFrame:
+    """
+    Returns a pruned roster slice for (college_norm, season).
+    Only loads the needed columns. DuckDB path is ~order-of-magnitude faster.
+    """
     cols = [
         "college","season","player_ind","player_number_ind","position","Archetype",
         "minutes_tot_ind","mins_per_game","pts_per_game","ast_per_game","reb_per_game",
         "stl_per_game","blk_per_game","eFG_pct","USG_pct","gp_ind"
     ]
+
+    if _has_duckdb():
+        con = _duckdb_conn(processed_path)
+        # Build projection only for columns that exist (schema may evolve)
+        existing = set(con.execute("SELECT * FROM processed LIMIT 0").df().columns)
+        proj = [c for c in cols if c in existing]
+        if not proj:
+            return pd.DataFrame(columns=[])
+        q = f"""
+            SELECT {', '.join(proj)}
+            FROM processed
+            WHERE lower(trim(college)) = ? AND cast(season as varchar) = ?
+        """
+        df = con.execute(q, [str(college_norm), str(season)]).df()
+        if "college" in df.columns:
+            df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
+        return df
+
+    # Fallback
     df = _safe_read_parquet(processed_path, cols)
     if df.empty:
-        return df  # empty; caller will handle gracefully
-
+        return df
     df[" college_norm"] = df["college"].astype(str).str.strip().str.lower() if "college" in df.columns else ""
     if "season" in df.columns:
         df = df[df["season"].astype(str) == str(season)]
@@ -100,41 +148,72 @@ def team_season_view(processed_path: Path, college_norm: str, season: str) -> pd
     return df.copy()
 
 
-# ---- Fetch rows for compare cart (by triples) ----
 @st.cache_data(ttl=600, show_spinner=False)
 def rows_for_compare(processed_path: Path, items: list[dict]) -> list[pd.Series]:
     """
+    Fetch rows for compare cart. Preserves input order. Uses DuckDB for speed.
     items: [{"player_ind": "...", "season": "...", "college": "..."}]
-    Returns list of matching rows in the same order as items (first match per triple).
     """
     if not items:
         return []
 
-    want = pd.DataFrame(items, columns=["player_ind", "season", "college"]).dropna()
+    want = pd.DataFrame(items, columns=["player_ind","season","college"]).dropna()
     if want.empty:
         return []
 
-    want["player_ind"] = want["player_ind"].astype(str)
-    want["season"] = want["season"].astype(str)
-    want["college"] = want["college"].astype(str)
-
+    # Columns needed for compare view
     cols = [
         "player_ind","season","college","position","Archetype",
         "pts_per_game","reb_per_game","ast_per_game","stl_per_game","blk_per_game",
         "eFG_pct","USG_pct","mins_per_game","minutes_tot_ind","player_number_ind"
     ]
+
+    if _has_duckdb():
+        con = _duckdb_conn(processed_path)
+        existing = set(con.execute("SELECT * FROM processed LIMIT 0").df().columns)
+        proj = [c for c in cols if c in existing]
+        if not proj:
+            return []
+        # Build IN filters to minimize scans
+        players = tuple(want["player_ind"].astype(str).unique().tolist())
+        seasons = tuple(want["season"].astype(str).unique().tolist())
+        colleges = tuple(want["college"].astype(str).unique().tolist())
+
+        q = f"""
+            SELECT {', '.join(proj)}
+            FROM processed
+            WHERE player_ind IN ({','.join(['?']*len(players))})
+              AND cast(season as varchar) IN ({','.join(['?']*len(seasons))})
+              AND college IN ({','.join(['?']*len(colleges))})
+        """
+        params = list(players) + list(seasons) + list(colleges)
+        df = con.execute(q, params).df()
+        # Normalize types for joins
+        for c in ["player_ind","season","college"]:
+            if c in df.columns:
+                df[c] = df[c].astype(str)
+
+        merged = want.merge(df, on=["player_ind","season","college"], how="left", suffixes=("", "_df"))
+
+        out: list[pd.Series] = []
+        for _, row in want.iterrows():
+            hit = merged[
+                (merged["player_ind"] == str(row["player_ind"])) &
+                (merged["season"] == str(row["season"])) &
+                (merged["college"] == str(row["college"]))
+            ]
+            if not hit.empty:
+                out.append(hit.iloc[0])
+        return out
+
+    # Fallback
     df = _safe_read_parquet(processed_path, cols)
     if df.empty:
         return []
-
-    # Ensure string compare compatibility
-    for c in ["player_ind", "season", "college"]:
+    for c in ["player_ind","season","college"]:
         if c in df.columns:
             df[c] = df[c].astype(str)
-
-    # Merge to preserve order and 1:1 mapping
-    merged = want.merge(df, on=["player_ind", "season", "college"], how="left", suffixes=("", "_df"))
-
+    merged = want.merge(df, on=["player_ind","season","college"], how="left", suffixes=("", "_df"))
     out: list[pd.Series] = []
     for _, row in want.iterrows():
         hit = merged[
