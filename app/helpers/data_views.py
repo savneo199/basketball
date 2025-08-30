@@ -4,86 +4,64 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# ---------------- Common helpers ----------------
+# ---------- Common helpers ----------
 def _as_str_path(p: Path | str) -> str:
     return str(p if isinstance(p, Path) else Path(p))
 
 def _escape_duckdb_string(s: str) -> str:
-    # Escape single quotes for SQL string literal in DuckDB
     return s.replace("'", "''")
 
-
-# ---------------- DuckDB connection (fast path) ----------------
 def _has_duckdb() -> bool:
     try:
-        import duckdb  # noqa: F401
+        import duckdb  # noqa
         return True
     except Exception:
         return False
 
+# ---------- DuckDB connection (fast path) ----------
 @st.cache_resource(show_spinner=False)
 def _duckdb_conn(processed_path: Path):
-    """
-    Persistent DuckDB connection with a VIEW 'processed' over the Parquet file or directory.
-    We must inline the file path (no '?' params) inside table functions for CREATE VIEW.
-    """
     import duckdb
     con = duckdb.connect()
+    con.execute("PRAGMA threads=4")
+    con.execute("PRAGMA enable_object_cache=true")
+    p = Path(processed_path)
+    pstr = _escape_duckdb_string(p.as_posix())
     try:
-        con.execute("PRAGMA threads=4")
-        con.execute("PRAGMA enable_object_cache=true")
-        p = Path(processed_path)
-        pstr = _escape_duckdb_string(p.as_posix())
-
-        # Try parquet_scan first (modern); fallback to read_parquet
-        try:
-            con.execute(f"""
-                CREATE OR REPLACE VIEW processed AS
-                SELECT * FROM parquet_scan('{pstr}', union_by_name=true)
-            """)
-        except Exception:
-            con.execute(f"""
-                CREATE OR REPLACE VIEW processed AS
-                SELECT * FROM read_parquet('{pstr}', union_by_name=true)
-            """)
+        con.execute(f"""
+            CREATE OR REPLACE VIEW processed AS
+            SELECT * FROM parquet_scan('{pstr}', union_by_name=true)
+        """)
     except Exception:
-        # If anything fails during setup, close and re-raise so callers can fallback
-        con.close()
-        raise
+        con.execute(f"""
+            CREATE OR REPLACE VIEW processed AS
+            SELECT * FROM read_parquet('{pstr}', union_by_name=true)
+        """)
     return con
 
 def _duckdb_existing_columns(con) -> set[str]:
-    # DESCRIBE is cheap and avoids scanning data
     try:
         df = con.execute("DESCRIBE processed").df()
         if "column_name" in df.columns:
             return set(df["column_name"].astype(str).tolist())
-        # Older DuckDB: fall back to LIMIT 0 projection
         return set(con.execute("SELECT * FROM processed LIMIT 0").df().columns)
     except Exception:
         return set()
 
-
-# ---------------- Safe PyArrow helpers (fallback path) ----------------
+# ---------- Safe PyArrow fallback ----------
 @st.cache_data(ttl=600, show_spinner=False)
 def parquet_columns(processed_path: Path) -> list[str]:
-    """
-    Return the list of column names in the Parquet file or directory.
-    """
     path_str = _as_str_path(processed_path)
     try:
         import pyarrow.dataset as ds
-        schema = ds.dataset(path_str).schema
-        return list(schema.names)
+        return list(ds.dataset(path_str).schema.names)
     except Exception:
         try:
             import pyarrow.parquet as pq
-            pf = pq.ParquetFile(path_str)
-            return list(pf.schema_arrow.names)
+            return list(pq.ParquetFile(path_str).schema_arrow.names)
         except Exception:
             try:
-                df = pd.read_parquet(path_str)
-                return list(df.columns)
+                return list(pd.read_parquet(path_str).columns)
             except Exception:
                 return []
 
@@ -94,67 +72,100 @@ def _safe_read_parquet(processed_path: Path, desired_cols: list[str]) -> pd.Data
         return pd.DataFrame(columns=[])
     return pd.read_parquet(_as_str_path(processed_path), columns=use_cols)
 
+# ---------- Manifest (team/season index) ----------
+def _default_manifest_path(processed_path: Path) -> Path:
+    # store next to processed parquet
+    p = Path(processed_path)
+    return p.with_name("processed_manifest.parquet")
 
-# ---------------- Public, cached API (tries DuckDB first, falls back safely) ----------------
-@st.cache_data(ttl=600, show_spinner=False)
-def list_team_choices(processed_path: Path, college_map: dict[str, str]) -> list[str]:
-    # Fast path: DuckDB
-    if _has_duckdb():
-        try:
+@st.cache_resource(show_spinner=False)
+def _build_manifest(processed_path: Path) -> Path | None:
+    """Create a tiny manifest with (college_norm, season, college_sample) and save to parquet."""
+    out = _default_manifest_path(processed_path)
+    try:
+        if _has_duckdb():
             con = _duckdb_conn(processed_path)
             df = con.execute("""
-                SELECT DISTINCT college FROM processed
-                WHERE college IS NOT NULL
+                SELECT
+                  lower(trim(college))::VARCHAR AS college_norm,
+                  cast(season AS VARCHAR)      AS season,
+                  any_value(college)::VARCHAR  AS college_sample
+                FROM processed
+                WHERE college IS NOT NULL AND season IS NOT NULL
+                GROUP BY 1,2
             """).df()
-            if df.empty:
-                return []
-            df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
-            disp = df[" college_norm"].map(college_map).fillna(df["college"].astype(str))
-            return sorted(disp.dropna().unique().tolist())
-        except Exception:
-            pass  # fall through to Arrow fallback
+        else:
+            # Arrow fallback (one-time)
+            cols = ["college", "season"]
+            df_all = _safe_read_parquet(processed_path, cols)
+            if df_all.empty:
+                return None
+            df = df_all.dropna(subset=["college", "season"]).copy()
+            df["college_norm"] = df["college"].astype(str).str.strip().str.lower()
+            df["season"] = df["season"].astype(str)
+            df["college_sample"] = df["college"].astype(str)
+            df = df[["college_norm", "season", "college_sample"]].drop_duplicates()
 
-    # Fallback: PyArrow/pandas
-    df = _safe_read_parquet(processed_path, ["college"])
-    if df.empty or "college" not in df.columns:
-        return []
-    df = df.dropna(subset=["college"]).copy()
-    df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
-    disp = df[" college_norm"].map(college_map).fillna(df["college"].astype(str))
+        if df.empty:
+            return None
+        out.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(out, index=False)
+        return out
+    except Exception:
+        return None
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_manifest(processed_path: Path) -> pd.DataFrame:
+    p = _default_manifest_path(processed_path)
+    if not p.exists():
+        p2 = _build_manifest(processed_path)
+        if p2 is None or not Path(p2).exists():
+            return pd.DataFrame(columns=["college_norm", "season", "college_sample"])
+    try:
+        df = pd.read_parquet(p)
+        # normalize types
+        for c in ["college_norm", "season", "college_sample"]:
+            if c in df.columns:
+                df[c] = df[c].astype(str)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["college_norm", "season", "college_sample"])
+
+# ---------- Public, cached API (selectors use manifest) ----------
+@st.cache_data(ttl=600, show_spinner=False)
+def list_team_choices(processed_path: Path, college_map: dict[str, str]) -> list[str]:
+    man = _load_manifest(processed_path)
+    if man.empty:
+        # last-resort fallback
+        df = _safe_read_parquet(processed_path, ["college"])
+        if df.empty:
+            return []
+        df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
+        disp = df[" college_norm"].map(college_map).fillna(df["college"].astype(str))
+        return sorted(disp.dropna().unique().tolist())
+
+    disp = man["college_norm"].map(college_map).fillna(man["college_sample"])
     return sorted(disp.dropna().unique().tolist())
-
 
 @st.cache_data(ttl=600, show_spinner=False)
 def list_seasons_for_team(processed_path: Path, college_norm: str) -> list[str]:
-    if _has_duckdb():
-        try:
-            con = _duckdb_conn(processed_path)
-            df = con.execute("""
-                SELECT DISTINCT season
-                FROM processed
-                WHERE lower(trim(college)) = ?
-                  AND season IS NOT NULL
-                ORDER BY season
-            """, [str(college_norm)]).df()
-            return df["season"].astype(str).tolist() if "season" in df.columns else []
-        except Exception:
-            pass
-
+    man = _load_manifest(processed_path)
+    if not man.empty:
+        return (
+            man.loc[man["college_norm"] == str(college_norm), "season"]
+               .dropna().astype(str).sort_values().unique().tolist()
+        )
+    # fallback
     df = _safe_read_parquet(processed_path, ["college", "season"])
-    if df.empty or not {"college", "season"}.issubset(df.columns):
+    if df.empty:
         return []
     df[" college_norm"] = df["college"].astype(str).str.strip().str.lower()
-    out = (
+    return (
         df.loc[df[" college_norm"] == str(college_norm), "season"]
-        .dropna()
-        .astype(str)
-        .sort_values()
-        .unique()
-        .tolist()
+          .dropna().astype(str).sort_values().unique().tolist()
     )
-    return out
 
-
+# ---------- Roster + Compare (DuckDB fast path, Arrow fallback) ----------
 @st.cache_data(ttl=600, show_spinner=False)
 def team_season_view(processed_path: Path, college_norm: str, season: str) -> pd.DataFrame:
     cols = [
@@ -162,7 +173,6 @@ def team_season_view(processed_path: Path, college_norm: str, season: str) -> pd
         "minutes_tot_ind","mins_per_game","pts_per_game","ast_per_game","reb_per_game",
         "stl_per_game","blk_per_game","eFG_pct","USG_pct","gp_ind"
     ]
-
     if _has_duckdb():
         try:
             con = _duckdb_conn(processed_path)
@@ -182,8 +192,7 @@ def team_season_view(processed_path: Path, college_norm: str, season: str) -> pd
             return df
         except Exception:
             pass
-
-    # Fallback
+    # fallback
     df = _safe_read_parquet(processed_path, cols)
     if df.empty:
         return df
@@ -194,22 +203,18 @@ def team_season_view(processed_path: Path, college_norm: str, season: str) -> pd
         df = df[df[" college_norm"] == str(college_norm)]
     return df.copy()
 
-
 @st.cache_data(ttl=600, show_spinner=False)
 def rows_for_compare(processed_path: Path, items: list[dict]) -> list[pd.Series]:
     if not items:
         return []
-
-    want = pd.DataFrame(items, columns=["player_ind", "season", "college"]).dropna()
+    want = pd.DataFrame(items, columns=["player_ind","season","college"]).dropna()
     if want.empty:
         return []
-
     cols = [
         "player_ind","season","college","position","Archetype",
         "pts_per_game","reb_per_game","ast_per_game","stl_per_game","blk_per_game",
         "eFG_pct","USG_pct","mins_per_game","minutes_tot_ind","player_number_ind"
     ]
-
     if _has_duckdb():
         try:
             con = _duckdb_conn(processed_path)
@@ -217,16 +222,12 @@ def rows_for_compare(processed_path: Path, items: list[dict]) -> list[pd.Series]
             proj = [c for c in cols if c in existing]
             if not proj:
                 return []
-
             players = tuple(want["player_ind"].astype(str).unique().tolist())
             seasons = tuple(want["season"].astype(str).unique().tolist())
             colleges = tuple(want["college"].astype(str).unique().tolist())
-
-            # Build param placeholders
             ph_players = ",".join(["?"] * len(players)) or "''"
             ph_seasons = ",".join(["?"] * len(seasons)) or "''"
             ph_colleges = ",".join(["?"] * len(colleges)) or "''"
-
             q = f"""
                 SELECT {', '.join(proj)}
                 FROM processed
@@ -236,12 +237,10 @@ def rows_for_compare(processed_path: Path, items: list[dict]) -> list[pd.Series]
             """
             params = list(players) + list(seasons) + list(colleges)
             df = con.execute(q, params).df()
-            for c in ["player_ind", "season", "college"]:
+            for c in ["player_ind","season","college"]:
                 if c in df.columns:
                     df[c] = df[c].astype(str)
-
-            merged = want.merge(df, on=["player_ind", "season", "college"], how="left", suffixes=("", "_df"))
-
+            merged = want.merge(df, on=["player_ind","season","college"], how="left", suffixes=("", "_df"))
             out: list[pd.Series] = []
             for _, row in want.iterrows():
                 hit = merged[
@@ -254,15 +253,14 @@ def rows_for_compare(processed_path: Path, items: list[dict]) -> list[pd.Series]
             return out
         except Exception:
             pass
-
-    # Fallback
+    # fallback
     df = _safe_read_parquet(processed_path, cols)
     if df.empty:
         return []
-    for c in ["player_ind", "season", "college"]:
+    for c in ["player_ind","season","college"]:
         if c in df.columns:
             df[c] = df[c].astype(str)
-    merged = want.merge(df, on=["player_ind", "season", "college"], how="left", suffixes=("", "_df"))
+    merged = want.merge(df, on=["player_ind","season","college"], how="left", suffixes=("", "_df"))
     out: list[pd.Series] = []
     for _, row in want.iterrows():
         hit = merged[
