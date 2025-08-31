@@ -19,25 +19,7 @@ def render():
             st.success("Refreshed")
 
 
-    st.subheader("AI-driven player archetyping tool for NCAA Women’s Basketball")
-
-    st.markdown(
-        """
-    **WCBB Coach** helps you quickly understand **player roles and styles** across NCAA women’s basketball.  
-    We use game data to group players into **archetypes** (e.g., rim protectors, spot-up wings, on-ball creators), so you can scan a roster, find comparable players, and spot lineup fits faster.
-    """
-    )
-
-    with st.expander("What you'll find in the tabs"):
-        st.markdown(
-            """
-    - **Roster Overview:** See your team (or an opponent) broken down by archetype and usage at a glance.  
-    - **Player Finder:** Search any player and view their archetype, core stats, and recent form.  
-    - **Archetypes:** Read short definitions, key stats, and typical strengths/limitations for each archetype.  
-    - **Compare Players:** Pick two players to compare profiles, shot mix, and impact metrics side-by-side.  
-    - **Methodology (optional):** A quick overview of how the model groups players (for context, not scouting).
-    """
-        )
+    
         
     st.subheader("Cluster Composition by Archetype")
     paths = latest_artifacts()
