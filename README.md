@@ -1,61 +1,38 @@
+# Data-Driven Framework for Athlete Profiling
 
-# End-to-end Pipeline (preprocess → explore → k_means_final)
+This project provides a data-driven framework for profiling athletes using advanced analytics and machine learning techniques. It is designed to help coaches, analysts, and researchers gain insights into athlete performance and development.
 
-This scaffold executes your three notebooks in order and saves artifacts for a dashboard.
+## Features
 
-## Layout
-- `config.yaml` — paths & parameters
-- `orchestrate.py` — runs the notebooks with a shared runtime context
-- `train.py` — CLI wrapper
-- `utils/notebook_exec.py` — notebook execution helper (uses `nbclient`)
-- `artifacts/` — outputs written by your notebooks
-- `dashboard_streamlit.py` — minimal app that loads artifacts
+- Data ingestion and preprocessing
+- Feature engineering for athlete metrics
+- Machine learning model training and evaluation
+- Visualization tools for profiling and comparison
 
-## How it works
-We inject a dict called `PIPELINE_CONTEXT` (name configurable) into each notebook before execution:
-```python
-PIPELINE_CONTEXT = {
-  "params": {...},
-  "artifacts": {...},  # resolved file paths
-  "cwd": "..."
-}
-```
-In your notebooks, read it like:
-```python
-ctx = PIPELINE_CONTEXT
-params = ctx["params"]
-paths = ctx["artifacts"]
-```
-Then **write outputs** to the artifact paths, for example in `k_means_final.ipynb`:
-```python
-import joblib, json
-joblib.dump(kmeans, paths["dir"] + "/kmeans_model.joblib")
-joblib.dump(scaler, paths["dir"] + "/scaler.joblib")
-joblib.dump(pca, paths["dir"] + "/pca.joblib")
-json.dump(cluster_summary, open(paths["dir"] + "/cluster_summary.json","w"))
+## Installation
+
+```bash
+git clone https://github.com/yourusername/data-driven-framework-for-athlete-profiling.git
+cd data-driven-framework-for-athlete-profiling
+pip install -r requirements.txt
 ```
 
-## Running the pipeline
-1. Make sure dependencies are installed:
-   ```bash
-   pip install nbclient nbformat joblib pandas pyarrow scikit-learn pyyaml plotly streamlit
-   ```
-2. Run:
-   ```bash
-   python train.py
-   # or specify a different config:
-   python train.py --config /path/to/config.yaml
-   ```
-3. Start the dashboard:
-   ```bash
-   streamlit run dashboard_streamlit.py
-   ```
+## Usage
 
-## Notes
-- The **explore** notebook usually generates EDA visuals; it can also compute metrics
-  (elbow, silhouette) and save them to artifact files configured in `config.yaml`.
-- If your final notebook *auto-selects* `n_clusters`, still write the chosen value into
-  the summary JSON so the dashboard can display it.
-- If some magics (`%`) or shell `!` commands are used, `nbclient` will generally handle
-  them because they run within a kernel. If you run into errors, prefer replacing shell
-  calls with Python equivalents.
+1. Prepare your dataset in the `data/` directory.
+2. Run the main analysis script:
+  ```bash
+  python main.py
+  ```
+3. View results in the `output/` directory.
+
+## Project Structure
+
+```
+.
+├── data/
+├── src/
+├── output/
+├── requirements.txt
+└── README.md
+```

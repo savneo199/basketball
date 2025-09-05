@@ -1,0 +1,17 @@
+{
+  "selected": {
+    "n_clusters": 6,
+    "pca_components": 10
+  },
+  "scores": {
+    "silhouette": 0.14261585509809416
+  },
+  "cluster_sizes": {
+    "0": 177,
+    "1": 261,
+    "2": 250,
+    "3": 178,
+    "4": 230,
+    "5": 85
+  }
+}

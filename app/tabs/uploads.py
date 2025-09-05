@@ -32,7 +32,7 @@ def render():
         up_ind = st.file_uploader("Upload individual_stats_overall.csv", type=["csv"], key="up_ind_single")
         up_team = st.file_uploader("Upload team_stats.csv", type=["csv"], key="up_team_single")
 
-        if st.button("Validate & Save (single)"):
+        if st.button("Validate & Save"):
             if not team_display_in or not season_in or not up_ind or not up_team:
                 st.error("Please provide team, season, and both CSV files.")
                 return
@@ -72,7 +72,7 @@ def render():
         st.caption("Upload a ZIP with structure: `college/season/{individual_stats_overall.csv, team_stats.csv}`.")
         up_zip = st.file_uploader("Upload ZIP", type=["zip"], key="up_zip_one_college")
 
-        if st.button("Validate & Save (multi seasons, one college)"):
+        if st.button("Validate & Save"):
             if not team_display_in or not up_zip:
                 st.error("Please provide team and a ZIP file.")
                 return
@@ -143,7 +143,7 @@ def render():
         st.caption("Upload a ZIP with structure: `college/season/{individual_stats_overall.csv, team_stats.csv}` (strict).")
         up_zip = st.file_uploader("Upload ZIP", type=["zip"], key="up_zip_multi")
 
-        if st.button("Validate & Save (multi colleges)"):
+        if st.button("Validate & Save"):
             if not up_zip:
                 st.error("Please upload a ZIP file.")
                 return

@@ -17,9 +17,6 @@ def render():
             st.cache_data.clear()
             st.cache_resource.clear()
             st.success("Refreshed")
-
-
-    
         
     st.subheader("Cluster Composition by Archetype")
     paths = latest_artifacts()
@@ -29,6 +26,7 @@ def render():
 
     summary = load_json_file(paths["summary"]) if paths["summary"].exists() else {}
     cluster_sizes = (summary.get("cluster_sizes") or {})
+    match = (summary.get("match_percentages") or [])
     if not cluster_sizes:
         st.info("No 'cluster_sizes' found in cluster_summary.json.")
         return
@@ -37,13 +35,15 @@ def render():
                    key=lambda x: (-x[1], x[0]))
     labels = [name for name, _ in items]
     counts = [cnt for _, cnt in items]
+    matching = [match.get(name, 0) for name in labels]
     total = max(sum(counts), 1)
     df_pie = pd.DataFrame({
         "Archetype": labels,
-        "Count": counts,
-        "Percent": [c * 100.0 / total for c in counts],
+        "Number of Players": [f"{c}" for c in counts],
+        "Data %": [f"{c * 100.0 / total:.1f}%" for c in counts],
+        "Match %": matching,
     })
-    fig = px.pie(df_pie, names="Archetype", values="Count", hole=0.35)
+    fig = px.pie(df_pie, names="Archetype", values="Number of Players", hole=0.35)
     fig.update_traces(
         textinfo="percent",
         hovertemplate="<b>%{label}</b><br>Count: %{value}<br>% of total: %{percent}<extra></extra>"
@@ -55,6 +55,11 @@ def render():
     st.plotly_chart(fig, use_container_width=True)
     st.caption("Counts by archetype")
     st.dataframe(
-        df_pie[["Archetype", "Count", "Percent"]].sort_values("Count", ascending=False),
+        df_pie[["Archetype", "Number of Players", "Data %", "Match %"]],
         use_container_width=True
     )
+    with st.expander("Legend"):
+        st.write("Match % indicates how closely players align with their assigned archetype.")
+        st.write("Data % represents the proportion of players in each archetype.")
+        st.write("Number of Players is the raw count of players assigned to each archetype.")
+

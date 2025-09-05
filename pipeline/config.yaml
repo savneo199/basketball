@@ -20,6 +20,14 @@ artifacts:
   db_plot: "db_plot.png"
   ch_plot: "ch_plot.png"
   selection: "selection.json"
+  rf: "rf_surrogate.pkl"
+  feature_cols: "feature_cols.pkl"
+  X_test: "X_test.parquet"
+  y_test: "y_test.parquet"
+  shap_values: "shap_values.pkl"
+  shap_arr: "shap_arr.npy"
+  expected_vals: "expected_vals.npy"
+  global_importance: "global_importance.csv"
 
 params:
   # set to an int to force; set to "auto" to let notebooks choose

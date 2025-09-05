@@ -1,0 +1,12 @@
+.git
+__pycache__/
+*.py[cod]
+*.ipynb_checkpoints/
+.env
+.venv
+.env.*
+dist/
+build/
+.notebooks/
+
+

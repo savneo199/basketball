@@ -25,26 +25,6 @@ def _make_run_artifacts(cfg: Dict[str, Any]) -> Dict[str, str]:
         fq[k] = str(run_dir / v)
     return fq
 
-# def _update_latest_pointer(run_dir: Path):
-#     latest = run_dir.parent / "latest"
-#     try:
-#         if latest.exists() or latest.is_symlink():
-#             if latest.is_symlink():
-#                 latest.unlink()
-#             elif latest.is_dir():
-#                 # remove old dir to replace with symlink
-#                 shutil.rmtree(latest)
-#             else:
-#                 latest.unlink()
-#         latest.symlink_to(run_dir, target_is_directory=True)
-#     except Exception:
-#         # Fallback: copy if symlink not allowed
-#         if latest.exists():
-#             if latest.is_dir():
-#                 shutil.rmtree(latest)
-#             else:
-#                 latest.unlink()
-#         shutil.copytree(run_dir, latest)
 def _update_latest_pointer(run_dir: Path):
     latest = run_dir.parent / "latest"
     try:
@@ -52,14 +32,11 @@ def _update_latest_pointer(run_dir: Path):
             if latest.is_symlink():
                 latest.unlink()
             elif latest.is_dir():
+                # remove old dir to replace with symlink
                 shutil.rmtree(latest)
             else:
                 latest.unlink()
-
-        # Use relative symlink (from artifacts/ to run_xxx)
-        rel_target = os.path.relpath(run_dir, start=latest.parent)
-        latest.symlink_to(rel_target, target_is_directory=True)
-
+        latest.symlink_to(run_dir, target_is_directory=True)
     except Exception:
         # Fallback: copy if symlink not allowed
         if latest.exists():
@@ -68,7 +45,6 @@ def _update_latest_pointer(run_dir: Path):
             else:
                 latest.unlink()
         shutil.copytree(run_dir, latest)
-
 
 # ---- Robust notebook path resolution ----
 def _resolve_nb_path(nb_path_str: str, cfg_path: Path) -> Path:

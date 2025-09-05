@@ -7,11 +7,10 @@ import zipfile
 import joblib
 import pandas as pd
 import streamlit as st
+import duckdb 
 
 from get_paths import ROOT, DATA_DIR, RAW_BASE, ART_DIR
 
-
-import streamlit as st
 # Hashing
 def hash_data_folder() -> str:
     h = hashlib.sha256()
@@ -22,6 +21,12 @@ def hash_data_folder() -> str:
         except Exception:
             pass
     return h.hexdigest()
+
+@st.cache_data(show_spinner=False)
+def load_duckdb(db_path: Path, table: str = "processed") -> pd.DataFrame:
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        # safer than building SQL; no need to escape the identifier
+        return con.table(table).df()
 
 # Caches
 @st.cache_data(show_spinner=False)
@@ -43,11 +48,10 @@ def load_json_file(path: Path) -> dict:
 def latest_artifacts():
     latest = ART_DIR / "latest"
     if not latest.exists():
-        st.warning(f"No latest folder found in {latest}")
         return None
     return {
         "root": latest,
-        "processed": latest / "processed.parquet",
+        "processed": latest / "processed.duckdb",
         "model": latest / "kmeans_model.joblib",
         "summary": latest / "cluster_summary.json",
         "selection": latest / "selection.json",
@@ -55,6 +59,15 @@ def latest_artifacts():
         "silhouette": latest / "silhouette_plot.png",
         "db_plot": latest / "db_plot.png",
         "ch_plot": latest / "ch_plot.png",
+        "global_importance": latest / "global_importance.csv",
+        "rf": latest / "rf_surrogate.pkl",
+        "feature_cols": latest / "feature_cols.pkl",
+        "X_test": latest / "X_test.parquet",
+        "y_test": latest / "y_test.parquet",
+        "shap_values": latest / "shap_values.pkl",
+        "shap_arr": latest / "shap_arr.npy",
+        "expected_vals": latest / "expected_vals.npy",
+        "global_importance": latest / "global_importance.csv"
     }
 
 # Pretty column names
