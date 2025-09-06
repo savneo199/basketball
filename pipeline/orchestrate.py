@@ -11,7 +11,7 @@ def load_config(cfg_path: Path) -> Dict[str, Any]:
     with open(cfg_path, "r") as f:
         return yaml.safe_load(f)
 
-def _make_run_artifacts(cfg: Dict[str, Any]) -> Dict[str, str]:
+def make_run_artifacts(cfg: Dict[str, Any]) -> Dict[str, str]:
     """Return a dict of fully-qualified artifact paths under a timestamped run dir."""
     base = Path(cfg["artifacts"]["dir"]).resolve()
     run_id = os.environ.get("RUN_ID") or datetime.datetime.now().strftime("run_%Y%m%d_%H%M%S")
@@ -25,29 +25,30 @@ def _make_run_artifacts(cfg: Dict[str, Any]) -> Dict[str, str]:
         fq[k] = str(run_dir / v)
     return fq
 
-def _update_latest_pointer(run_dir: Path):
+def update_latest_pointer(run_dir: Path):
     latest = run_dir.parent / "latest"
-    try:
-        if latest.exists() or latest.is_symlink():
-            if latest.is_symlink():
-                latest.unlink()
-            elif latest.is_dir():
-                # remove old dir to replace with symlink
-                shutil.rmtree(latest)
-            else:
-                latest.unlink()
-        latest.symlink_to(run_dir, target_is_directory=True)
-    except Exception:
-        # Fallback: copy if symlink not allowed
-        if latest.exists():
-            if latest.is_dir():
-                shutil.rmtree(latest)
-            else:
-                latest.unlink()
-        shutil.copytree(run_dir, latest)
+    
+    # try:
+    #     if latest.exists() or latest.is_symlink():
+    #         if latest.is_symlink():
+    #             latest.unlink()
+    #         elif latest.is_dir():
+    #             # remove old dir to replace with symlink
+    #             shutil.rmtree(latest)
+    #         else:
+    #             latest.unlink()
+    #     latest.symlink_to(run_dir, target_is_directory=True)
+    # except Exception:
+    # Fallback: copy if symlink not allowed
+    if latest.exists():
+        if latest.is_dir():
+            shutil.rmtree(latest)
+        else:
+            latest.unlink()
+    shutil.copytree(run_dir, latest)
 
-# ---- Robust notebook path resolution ----
-def _resolve_nb_path(nb_path_str: str, cfg_path: Path) -> Path:
+# Robust notebook path resolution
+def resolve_nb_path(nb_path_str: str, cfg_path: Path) -> Path:
     """
     Resolve a notebook path that may be relative to either:
       - the pipeline/ folder (where this file and config.yaml live), or
@@ -58,12 +59,12 @@ def _resolve_nb_path(nb_path_str: str, cfg_path: Path) -> Path:
     if p.is_absolute():
         return p
 
-    pipeline_dir = cfg_path.parent            # .../pipeline
-    repo_root = pipeline_dir.parent           # .../
+    pipeline_dir = cfg_path.parent            
+    repo_root = pipeline_dir.parent           
 
     candidates = [
-        (pipeline_dir / p).resolve(),         # pipeline/notebooks/...
-        (repo_root / p).resolve(),            # notebooks/...
+        (pipeline_dir / p).resolve(),         
+        (repo_root / p).resolve(),            
     ]
     for c in candidates:
         if c.exists():
@@ -71,7 +72,7 @@ def _resolve_nb_path(nb_path_str: str, cfg_path: Path) -> Path:
 
     # Nothing found: return the first candidate for clearer downstream error context
     return candidates[0]
-# -----------------------------------------
+
 
 def main(config_path: str = None):
     cfg_path = Path(config_path) if config_path else HERE / "config.yaml"
@@ -80,7 +81,7 @@ def main(config_path: str = None):
     # Normalize artifacts dir to an absolute path rooted at the repo root (parent of pipeline/)
     art_dir_cfg = Path(cfg["artifacts"]["dir"])
     if not art_dir_cfg.is_absolute():
-        repo_root = cfg_path.parent.parent          # .../  (one level above pipeline/)
+        repo_root = cfg_path.parent.parent          
         art_dir_abs = (repo_root / art_dir_cfg).resolve()
         art_dir_abs.mkdir(parents=True, exist_ok=True)
         cfg["artifacts"]["dir"] = str(art_dir_abs)
@@ -89,7 +90,7 @@ def main(config_path: str = None):
 
 
     # Compute per-run artifact paths
-    fq_artifacts = _make_run_artifacts(cfg)
+    fq_artifacts = make_run_artifacts(cfg)
 
     # Shared context for notebooks
     runtime_name = cfg.get("runtime_context_name", "PIPELINE_CONTEXT")
@@ -103,8 +104,8 @@ def main(config_path: str = None):
     else:
         # try relative to (a) config.yaml dir (pipeline/), (b) repo root (pipeline/..)
         candidates = [
-            (cfg_path.parent / p).resolve(),        # pipeline/data/...
-            (cfg_path.parent.parent / p).resolve(), # repo_root/data/...
+            (cfg_path.parent / p).resolve(),       
+            (cfg_path.parent.parent / p).resolve(),
         ]
 
     data_dir_abs = next((c for c in candidates if c.exists()), candidates[-1])
@@ -135,10 +136,10 @@ def main(config_path: str = None):
     for stage_name, nb_rel in stages:
         if not nb_rel:
             continue
-        nb_path = _resolve_nb_path(nb_rel, cfg_path)
+        nb_path = resolve_nb_path(nb_rel, cfg_path)
         print(f"[resolve] {stage_name}: {nb_rel} -> {nb_path}")
         order.append((stage_name, nb_path))
-    # --- End resolve ---
+    
 
     # Run all
     for stage, nb_path in order:
@@ -159,7 +160,7 @@ def main(config_path: str = None):
             sys.exit(1)
 
     # Update 'latest' pointer
-    _update_latest_pointer(Path(fq_artifacts["dir"]))
+    update_latest_pointer(Path(fq_artifacts["dir"]))
 
     print("Pipeline finished successfully.")
     print("Artifacts (this run):", fq_artifacts["dir"])
