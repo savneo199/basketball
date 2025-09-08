@@ -18,6 +18,7 @@ def render():
     - **Team & Player Finder:** See team and player stats and archetypes season by season, compare player's performance and statistics,
     and preview predicted lineups.
     - **Archetypes:** Read short definitions, key stats, and typical strengths/limitations for each archetype.  
+    - **Explainability:** Understand how the model classifies players into archetypes, and explore the key features that define each archetype.
     - **Upload & Classify:** Upload and classify new player data to improve archetype model accuracy, and preview the 
     archetypes of uploaded players.
     """

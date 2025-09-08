@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 import streamlit as st
-
 from get_paths import ART_DIR, PIPELINE_DIR
 
 def run_pipeline():

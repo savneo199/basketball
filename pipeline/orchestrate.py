@@ -27,19 +27,6 @@ def make_run_artifacts(cfg: Dict[str, Any]) -> Dict[str, str]:
 
 def update_latest_pointer(run_dir: Path):
     latest = run_dir.parent / "latest"
-    
-    # try:
-    #     if latest.exists() or latest.is_symlink():
-    #         if latest.is_symlink():
-    #             latest.unlink()
-    #         elif latest.is_dir():
-    #             # remove old dir to replace with symlink
-    #             shutil.rmtree(latest)
-    #         else:
-    #             latest.unlink()
-    #     latest.symlink_to(run_dir, target_is_directory=True)
-    # except Exception:
-    # Fallback: copy if symlink not allowed
     if latest.exists():
         if latest.is_dir():
             shutil.rmtree(latest)

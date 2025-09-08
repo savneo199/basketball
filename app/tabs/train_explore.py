@@ -8,7 +8,7 @@ from run_pipeline import run_pipeline
 def render():
     colA, colB = st.columns([1, 1])
     with colA:
-        if st.button("Run pipeline now"):
+        if st.button("Run AI Model Now"):
             rid = run_pipeline()
             if rid:
                 st.success(f"Artifacts updated: {rid}")
