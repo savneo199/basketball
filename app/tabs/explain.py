@@ -58,7 +58,7 @@ def render():
           2) processed.duckdb majority vote (fallback)
           3) final fallback: "Cluster {k}"
         """
-        # 1) From cluster_summary.json in order
+        # From cluster_summary.json in order
         try:
             if arts.get("summary") and arts["summary"].exists():
                 summ = load_json_file(arts["summary"])
@@ -71,7 +71,7 @@ def render():
         except Exception:
             pass
 
-        # 2) Fallback: processed.duckdb majority
+        # Fallback: processed.duckdb majority
         try:
             if arts.get("processed") and arts["processed"].exists():
                 proc = load_duckdb(arts["processed"], table="processed")
@@ -96,7 +96,7 @@ def render():
         except Exception:
             pass
 
-        # 3) Final fallback
+        # Final fallback
         n_classes = arr.shape[2]
         return {k: f"Cluster {k}" for k in range(n_classes)}
 
@@ -113,7 +113,7 @@ def render():
         acc = accuracy_score(y_test, y_pred)
         f1m = f1_score(y_test, y_pred, average="macro")
         c1, c2 = st.columns(2)
-        c1.metric("Accuracy", f"{acc:.3f}")
+        c1.metric("Accuracy", f"{acc*100:.3f}")
         c2.metric("Macro-F1", f"{f1m:.3f}")
         st.caption("How well the surrogate mimics the k-means assignments underlying the archetypes.")
 

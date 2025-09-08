@@ -328,6 +328,10 @@ def render():
                     scaled[m] = pd.to_numeric(scaled[m], errors="coerce")
                     scaled[m] = (scaled[m] - scale_min[m]) / scale_denom[m]
 
+                axis_max = scaled[metrics].max(numeric_only=True).max()    
+                if not pd.notna(axis_max) or axis_max <= 0:
+                    axis_max = 1.0
+
                 # Pretty theta labels in the original metric order selected by the coach
                 pretty_theta = [pretty_map[m] for m in metrics]
 
@@ -349,7 +353,7 @@ def render():
                     ))
 
                 fig_radar.update_layout(
-                    polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+                    polar=dict(radialaxis=dict(visible=True, range=[0, axis_max])),
                     showlegend=True,
                     margin=dict(l=10, r=10, t=30, b=10),
                     title="Radar comparison"
