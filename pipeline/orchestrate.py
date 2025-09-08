@@ -2,7 +2,7 @@ import os, sys, json, shutil, datetime
 from pathlib import Path
 from typing import Any, Dict
 import yaml
-
+import time
 from notebook_exec import execute_notebook, NotebookExecutionError
 
 HERE = Path(__file__).parent
@@ -155,7 +155,10 @@ def main(config_path: str = None):
 
 if __name__ == "__main__":
     # Allow optional --config /path/to/config.yaml
+    start = time.time()
     cfg_arg = None
     if len(sys.argv) >= 3 and sys.argv[1] == "--config":
         cfg_arg = sys.argv[2]
     main(cfg_arg)
+    end = time.time()
+    print(f"Total time: {end - start:.1f} seconds")
