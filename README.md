@@ -19,45 +19,44 @@ The project develops an end-to-end, machine learning pipeline for **role-based p
 
 This framework bridges data science and practical coaching needs by providing **interpretable and actionable insights** for roster building, opponent scouting, and lineup optimisation.
 
-## Repository Structure
-├── .devcontainer/
-├── .github/
-│   └── workflows/
+## Repository Structure (only main files shown)
+```
 ├── app/
-    ├── helpers
-    │   ├── archetype_positions.py
-    │   ├── court_builder.py
-    │   └── helpers.py
-    ├── tabs
-    │   ├── __pycache__/
-    │   ├── __init__.py
-    │   ├── archetypes.py
-    │   ├── explain.py
-    │   ├── historical_data.py
-    │   ├── home.py
-    │   ├── train_explore.py
-    │   └── uploads.py
-    ├── app.py
-    ├── get_paths.py
-    └── run_pipeline.py
+│    ├── helpers
+│    │   ├── archetype_positions.py
+│    │   ├── court_builder.py
+│    │   └── helpers.py
+│    ├── tabs
+│    │   ├── __pycache__/
+│    │   ├── __init__.py
+│    │   ├── archetypes.py
+│    │   ├── explain.py
+│    │   ├── historical_data.py
+│    │   ├── home.py
+│    │   ├── train_explore.py
+│    │   └── uploads.py
+│    ├── app.py
+│    ├── get_paths.py
+│    └── run_pipeline.py
 ├── artifacts/
 ├── college_basketball_dataset/
 ├── data/
 ├── notebooks/
-    ├── scraper.ipynb
-    ├── preprocess.ipynb
-    ├── explore.ipynb
-    ├── clustering_experimentation.ipynb
-    └── k_means_final.ipynb
+│    ├── scraper.ipynb
+│    ├── preprocess.ipynb
+│    ├── explore.ipynb
+│    ├── clustering_experimentation.ipynb
+│    └── k_means_final.ipynb
 ├── pipeline/
-    ├── orchestrate.py
-    ├── notebook_exec.py
-    └── config.yaml
+│    ├── orchestrate.py
+│    ├── notebook_exec.py
+│    └── config.yaml
 ├── .DS_Store
 ├── .dockerignore
 ├── .gitignore
 ├── Dockerfile
 └── requirements.txt
+```
 **Map**
 - `scraper.ipynb` → Web scraping pipeline for NCAA player statistics.  
 - `preprocess.ipynb` → Data cleaning, standardisation, and feature engineering.  
@@ -75,10 +74,14 @@ This framework bridges data science and practical coaching needs by providing **
    cd basketball
 
 2. Install dependencies:
+  ```bash
   pip install -r requirements.txt
+  ```
 
 3. Run the Streamlit dashboard to visualise results:
+  ```bash
   streamlit run dashboard/app.py
+  ```
 
 4. Explore notebooks (.ipynb) for end-to-end data pipeline and clustering experiments.
 
