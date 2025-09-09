@@ -27,6 +27,7 @@ def render():
     summary = load_json_file(paths["summary"]) if paths["summary"].exists() else {}
     cluster_sizes = (summary.get("cluster_sizes") or {})
     match = (summary.get("match_percentages") or [])
+    score = (summary.get("Match Score") or [])
     if not cluster_sizes:
         st.info("No 'cluster_sizes' found in cluster_summary.json.")
         return
@@ -36,11 +37,13 @@ def render():
     labels = [name for name, _ in items]
     counts = [cnt for _, cnt in items]
     matching = [match.get(name, 0) for name in labels]
+    scores = [score.get(name, 0) for name in labels]
     total = max(sum(counts), 1)
     df_pie = pd.DataFrame({
         "Archetype": labels,
         "Number of Players": [f"{c}" for c in counts],
         "Data %": [f"{c * 100.0 / total:.1f}%" for c in counts],
+        "Match Score": scores,
         "Match %": matching,
     })
     fig = px.pie(df_pie, names="Archetype", values="Number of Players", hole=0.35)
@@ -55,7 +58,7 @@ def render():
     st.plotly_chart(fig, use_container_width=True)
     st.caption("Counts by archetype")
     st.dataframe(
-        df_pie[["Archetype", "Number of Players", "Data %", "Match %"]],
+        df_pie[["Archetype", "Number of Players", "Data %", "Match %", "Match Score"]],
         use_container_width=True
     )
     with st.expander("Legend"):

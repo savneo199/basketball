@@ -51,20 +51,20 @@
     "inertia": [
       29767.66032618765,
       28257.144981301673,
-      27278.384526609534,
+      27278.38452660953,
       26378.97881416292,
       25751.62430395998,
-      24922.07219255847,
+      24922.072192558466,
       24339.545976671725,
-      23683.82919246929,
-      23317.69447378649,
-      22907.75909227502,
+      23683.829192469286,
+      23317.694473786494,
+      22907.759092275024,
       22426.547286988356,
-      21998.32219981108,
+      21998.322199811075,
       21593.57911447878,
       21317.71656404562,
       20903.3786471985,
-      20573.217623740868,
+      20573.217623740864,
       20399.1544739308,
       20188.72235326375,
       19828.591115187843,
@@ -88,11 +88,11 @@
       16712.0071230862,
       16551.34248131767,
       16289.153725872267,
-      16231.253035375856,
-      16208.392483223663,
+      16231.253035375858,
+      16208.39248322366,
       16052.598471908841,
-      15776.19113292238,
-      15849.754482935325
+      15776.191132922384,
+      15849.754482935326
     ],
     "silhouette": [
       0.14339958592524232,
@@ -233,10 +233,10 @@
       55.65365290214695
     ],
     "plots": {
-      "elbow": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_184218/elbow_plot.png",
-      "silhouette": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_184218/silhouette_plot.png",
-      "davies_bouldin": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_184218/db_plot.png",
-      "calinski_harabasz": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_184218/ch_plot.png"
+      "elbow": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_185258/elbow_plot.png",
+      "silhouette": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_185258/silhouette_plot.png",
+      "davies_bouldin": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_185258/db_plot.png",
+      "calinski_harabasz": "/Users/savvasneofytou/Desktop/basketball/artifacts/run_20250909_185258/ch_plot.png"
     }
   }
 }

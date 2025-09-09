@@ -23,11 +23,11 @@
     "Putback Specialist": "100.0%"
   },
   "Match Score": {
-    "Floor General": 1.0594345808288859,
-    "Rim Protector / Rebounding Big": 1.0967284269806865,
-    "Non-Impact Role Player": 1.0257482475486888,
-    "Deep Range Specialist": 0.8192058953452228,
-    "Two-Way Guard": 1.3913650413932506,
-    "Putback Specialist": 1.114827121579964
+    "Floor General": "1.059",
+    "Rim Protector / Rebounding Big": "1.097",
+    "Non-Impact Role Player": "1.026",
+    "Deep Range Specialist": "0.819",
+    "Two-Way Guard": "1.391",
+    "Putback Specialist": "1.115"
   }
 }
