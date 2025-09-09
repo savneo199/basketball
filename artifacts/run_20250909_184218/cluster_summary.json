@@ -1,0 +1,33 @@
+{
+  "selected": {
+    "n_clusters": 6,
+    "pca_components": 10
+  },
+  "scores": {
+    "silhouette": 0.14339958592524232
+  },
+  "cluster_sizes": {
+    "Floor General": 179,
+    "Rim Protector / Rebounding Big": 243,
+    "Non-Impact Role Player": 170,
+    "Deep Range Specialist": 274,
+    "Two-Way Guard": 89,
+    "Putback Specialist": 226
+  },
+  "match_percentages": {
+    "Floor General": "100.0%",
+    "Rim Protector / Rebounding Big": "100.0%",
+    "Non-Impact Role Player": "100.0%",
+    "Deep Range Specialist": "81.9%",
+    "Two-Way Guard": "100.0%",
+    "Putback Specialist": "100.0%"
+  },
+  "Match Score": {
+    "Floor General": 1.0594345808288859,
+    "Rim Protector / Rebounding Big": 1.0967284269806865,
+    "Non-Impact Role Player": 1.0257482475486888,
+    "Deep Range Specialist": 0.8192058953452228,
+    "Two-Way Guard": 1.3913650413932506,
+    "Putback Specialist": 1.114827121579964
+  }
+}
